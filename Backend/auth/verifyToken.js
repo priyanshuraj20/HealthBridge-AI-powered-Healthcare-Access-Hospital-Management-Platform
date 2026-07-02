@@ -1,12 +1,11 @@
 import jwt from "jsonwebtoken";
 import Doctor from "../models/DoctorSchema.js";
 import User from "../models/UserSchema.js";
+import Organization from "../models/OrganizationSchema.js";
 
 export const authenticate = async (req, res, next) => {
-  //get token from headers
   const authToken = req.headers.authorization;
 
-  //check if the token exists
   if (!authToken || !authToken.startsWith("Bearer")) {
     return res
       .status(401)
@@ -15,11 +14,10 @@ export const authenticate = async (req, res, next) => {
 
   try {
     const token = authToken.split(" ")[1];
-    //verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-    // console.log("decoded",decoded);
     req.userId = decoded.id;
     req.role = decoded.role;
+    req.hospital = decoded.hospital || null;
 
     next();
   } catch (err) {
@@ -35,15 +33,21 @@ export const restrict = (roles) => async (req, res, next) => {
   let user;
   const patient = await User.findById(userId);
   const doctor = await Doctor.findById(userId);
+  const org = await Organization.findById(userId);
+  
   if (patient) {
     user = patient;
-  } else {
+  } else if (doctor) {
     user = doctor;
+  } else {
+    user = org;
   }
-  if (user.role && !roles.includes(user.role)) {
+  
+  if (!user || (user.role && !roles.includes(user.role))) {
     return res
       .status(401)
       .json({ success: false, message: "You are not authorized" });
   }
   next();
 };
+

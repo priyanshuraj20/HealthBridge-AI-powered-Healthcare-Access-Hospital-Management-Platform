@@ -1,69 +1,135 @@
 /* eslint-disable react/prop-types */
+import { useState } from "react";
 import convertTime from "../../utils/convertTime";
-import {BASE_URL, token} from '../../config.js'
-import {toast} from "react-toastify"
+import { BASE_URL } from "../../config.js";
+import { toast } from "react-toastify";
 
 const SidePanel = ({ doctorId, ticketPrice, timeSlots }) => {
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState("");
+  const [symptoms, setSymptoms] = useState("");
+  const [bookingLoading, setBookingLoading] = useState(false);
+
+  const todayStr = new Date().toISOString().split("T")[0];
 
   const bookingHandler = async () => {
-    try{
+    const currentToken = localStorage.getItem("token");
+    if (!currentToken) {
+      toast.error("Please login to book an appointment.");
+      return;
+    }
+
+    if (!selectedDate) {
+      toast.error("Please select an appointment date.");
+      return;
+    }
+
+    if (selectedSlotIndex === "") {
+      toast.error("Please select a time slot.");
+      return;
+    }
+
+    const timeSlot = timeSlots[parseInt(selectedSlotIndex)];
+
+    setBookingLoading(true);
+    try {
       const res = await fetch(`${BASE_URL}/bookings/checkout-session/${doctorId}`, {
         method: "post",
         headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      })
-
-      console.log('Response status:', res.status);
+          Authorization: `Bearer ${currentToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          appointmentDate: selectedDate,
+          timeSlot,
+          symptoms,
+        }),
+      });
 
       if (!res.ok) {
-        if (res.headers.get('content-type')?.includes('application/json')) {
-          const errorData = await res.json();
-          throw new Error(errorData.message);
-        } else {
-          throw new Error('An unexpected error occurred. Please try again');
-        }
+        const errorData = await res.json();
+        throw new Error(errorData.message || "An unexpected error occurred.");
       }
 
-      const data = await res.json(); // Read response body once for the success case
-      if(data.session_url){
-        window.location.href = data.session_url
+      const data = await res.json();
+      setBookingLoading(false);
+      if (data.session_url) {
+        window.location.href = data.session_url;
       }
-    }catch(err){
-      toast.error(err.message)
+    } catch (err) {
+      toast.error(err.message);
+      setBookingLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="flex items-center justify-center shadow-panelShadow rounded-md h-[24rem] lg:h-[24rem]">
-      <div>
-      <div className="flex items-center  gap-6">
-        <p className="text_para mt-0 font-[700] text-headingColor">
-          Consultation Fee
-        </p>
-        <span className="text-[16px] leading-7 lg:text-[22px] lg:leading-8 text-headingColor font-[700]">
+    <div className="flex flex-col shadow-panelShadow rounded-md p-6 bg-white border border-gray-100 h-fit">
+      <div className="flex items-center justify-between pb-4 border-b border-gray-100 mb-5">
+        <p className="text-sm font-bold text-textColor">Consultation Fee</p>
+        <span className="text-xl text-headingColor font-bold">
           {ticketPrice} INR
         </span>
       </div>
-      <div className="mt-[30px]">
-        <p className="text_para mt-0 font-[600] text-headingColor">
-          Available Time Slots:
-        </p>
-        <ul className="mt-3 mb-0">
-          {timeSlots?.map((time, index) => (
-            <li key={index} className="flex items-center justify-between mb-2">
-              <p className="flex items-center justify-between mb-2">{time.day}</p>
-              <p className="text-[15px] leading-6 text-textColor font-[600]">
-                {convertTime(time.startingTime)} - {convertTime(time.endingTime)}
-              </p>
-            </li>
-          ))}
-        </ul>
+
+      <div className="space-y-4">
+        {/* Date Selector */}
+        <div>
+          <label className="text-sm font-semibold text-headingColor block mb-1">
+            Choose Date *
+          </label>
+          <input
+            type="date"
+            min={todayStr}
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="w-full p-2.5 border rounded-md focus:outline-none focus:border-primaryColor text-textColor text-sm bg-white"
+            required
+          />
+        </div>
+
+        {/* Time Slot Dropdown */}
+        <div>
+          <label className="text-sm font-semibold text-headingColor block mb-1">
+            Choose Time Slot *
+          </label>
+          <select
+            value={selectedSlotIndex}
+            onChange={(e) => setSelectedSlotIndex(e.target.value)}
+            className="w-full p-2.5 border rounded-md focus:outline-none focus:border-primaryColor text-textColor text-sm bg-white"
+            required
+          >
+            <option value="">Select a time slot</option>
+            {timeSlots?.map((time, index) => (
+              <option key={index} value={index}>
+                {time.day}: {convertTime(time.startingTime)} - {convertTime(time.endingTime)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Symptoms Description */}
+        <div>
+          <label className="text-sm font-semibold text-headingColor block mb-1">
+            Symptoms / Health Notes
+          </label>
+          <textarea
+            value={symptoms}
+            onChange={(e) => setSymptoms(e.target.value)}
+            placeholder="Describe symptoms briefly (e.g. fever, headache)"
+            className="w-full p-2.5 border rounded-md focus:outline-none focus:border-primaryColor text-textColor text-sm"
+            rows="2"
+          ></textarea>
+        </div>
       </div>
-      <button onClick={bookingHandler} className="btn px-2 w-full rounded-md mt-4">Book Appointment</button>
+
+      <button
+        onClick={bookingHandler}
+        disabled={bookingLoading}
+        className="btn w-full rounded-md mt-6 py-3 font-semibold text-sm transition-all"
+      >
+        {bookingLoading ? "Processing..." : "Book Appointment"}
+      </button>
     </div>
-  </div>
   );
 };
 

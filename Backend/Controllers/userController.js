@@ -70,24 +70,10 @@ export const getUserProfile = async (req, res) => {
 
 export const getMyAppointments = async (req, res) => {
   try {
-    //step1: retrieve appointments from booking
-    const bookings = await Booking.find({ user: req.userId, status: "approved" });
-
-    //step2: extract doctor ids from appoitnment bookings
-    const doctorIds = bookings.map((el) => el.doctor);
-
-    //step2: retrieve doctor using doctor ids
-    const doctors = await Doctor.find({ _id: { $in: doctorIds } }).select(
-      "-password"
-    );
-
-    res
-      .status(200)
-      .json({ success: true, message: "Getting Appointments", data: doctors });
+    const bookings = await Booking.find({ user: req.userId }).sort({ createdAt: -1 });
+    res.status(200).json({ success: true, message: "Getting Appointments", data: bookings });
   } catch (err) {
-    res
-      .status(500)
-      .json({ success: false, message: "Something get wrong, cannot get" });
+    res.status(500).json({ success: false, message: "Something went wrong, cannot get appointments" });
   }
 };
 
@@ -118,4 +104,91 @@ export const deleteUserAccount = async (req, res) => {
         console.error(err);
         res.status(500).json({ success: false, message: "Something went wrong, cannot delete account" });
     }
+};
+
+// Family Member Management
+export const addFamilyMember = async (req, res) => {
+  const userId = req.userId;
+  const { name, relation, gender, birthDate } = req.body;
+  if (!name || !relation) {
+    return res.status(400).json({ success: false, message: "Name and relation are required." });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    user.familyMembers.push({ name, relation, gender, birthDate });
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Family member added successfully",
+      data: user.familyMembers,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const deleteFamilyMember = async (req, res) => {
+  const userId = req.userId;
+  const memberId = req.params.memberId;
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    user.familyMembers = user.familyMembers.filter((m) => m._id.toString() !== memberId);
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Family member removed successfully",
+      data: user.familyMembers,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const addFamilyMemberRecord = async (req, res) => {
+  const userId = req.userId;
+  const memberId = req.params.memberId;
+  const { type, record } = req.body;
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    const member = user.familyMembers.id(memberId);
+    if (!member) {
+      return res.status(404).json({ success: false, message: "Family member not found." });
+    }
+
+    if (type === "reports") {
+      member.reports.push(record);
+    } else if (type === "vaccinations") {
+      member.vaccinations.push(record);
+    } else if (type === "appointments") {
+      member.appointments.push(record);
+    } else {
+      return res.status(400).json({ success: false, message: "Invalid record type" });
+    }
+
+    await user.save();
+    res.status(200).json({
+      success: true,
+      message: "Record added successfully",
+      data: user.familyMembers,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 };

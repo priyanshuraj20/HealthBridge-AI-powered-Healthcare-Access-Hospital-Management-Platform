@@ -68,32 +68,67 @@ export const getAll = async (req, res) => {
 // Controller function to get all doctors
 export const getAllDoctors = async (req, res) => {
   try {
-    const query = req.query.query;
-    let doctors;
+    const { query, specialization, department, gender, minFee, maxFee, sortBy, page, limit } = req.query;
+
+    let filter = { isApproved: "approved" };
 
     if (query) {
-      // Find doctors where the name or specialization matches the query and are approved
-      doctors = await Doctor.find({
-        isApproved: "approved",
-        $or: [
-          { name: new RegExp(query, 'i') },
-          { specialization: new RegExp(query, 'i') }
-        ]
-      }).select("-password");
+      filter.$or = [
+        { name: new RegExp(query, "i") },
+        { specialization: new RegExp(query, "i") },
+        { department: new RegExp(query, "i") }
+      ];
+    }
+
+    if (specialization) {
+      filter.specialization = new RegExp(specialization, "i");
+    }
+    if (department) {
+      filter.department = new RegExp(department, "i");
+    }
+    if (gender) {
+      filter.gender = gender;
+    }
+    if (minFee || maxFee) {
+      filter.ticketPrice = {};
+      if (minFee) filter.ticketPrice.$gte = parseFloat(minFee);
+      if (maxFee) filter.ticketPrice.$lte = parseFloat(maxFee);
+    }
+
+    let sortObj = {};
+    if (sortBy === "priceAsc") {
+      sortObj.ticketPrice = 1;
+    } else if (sortBy === "priceDesc") {
+      sortObj.ticketPrice = -1;
+    } else if (sortBy === "rating") {
+      sortObj.averageRating = -1;
     } else {
-      // Find all approved doctors if no query is provided
-      doctors = await Doctor.find({ isApproved: "approved" }).select("-password");
+      sortObj.createdAt = -1;
     }
 
-    // Handle case where no doctors are found
-    if (!doctors.length) {
-      return res.status(200).json({ success: true, message: "No doctors found" });
-    }
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 8;
+    const skipNum = (pageNum - 1) * limitNum;
 
-    // Return the list of doctors
-    res.status(200).json({ success: true, message: "Doctors found", data: doctors });
+    const total = await Doctor.countDocuments(filter);
+    const doctors = await Doctor.find(filter)
+      .select("-password")
+      .sort(sortObj)
+      .skip(skipNum)
+      .limit(limitNum);
+
+    res.status(200).json({
+      success: true,
+      message: "Doctors found",
+      data: doctors,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum)
+      }
+    });
   } catch (err) {
-    // Handle errors and send a 500 status code
     res.status(500).json({ success: false, message: "Server error", error: err.message });
   }
 };
@@ -109,7 +144,7 @@ export const getDoctorProfile = async (req, res) => {
         .json({ success: false, message: "Doctor not found" });
     }
     const { password, ...doctorData } = doctor._doc;
-    const appointments = await Booking.find({ doctor: doctorId, status: "approved"});
+    const appointments = await Booking.find({ doctor: doctorId }).sort({ appointmentDate: 1, "timeSlot.startingTime": 1 });
 
     const responseData = {
       ...doctorData,

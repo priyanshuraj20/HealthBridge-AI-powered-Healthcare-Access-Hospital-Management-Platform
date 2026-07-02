@@ -45,7 +45,7 @@ const DoctorDetails = () => {
                 </p>
               </div>
             </div>
-            <div className="mt-[50px] border-b border-solid border-[#0066ff30]">
+            <div className="mt-[50px] border-b border-solid border-[#0d948830]">
               <button
                 className={`${
                   tab === "about" &&

@@ -1,66 +1,38 @@
-import testImg01 from "../images/testImg01.jpg"
-import testImg02 from "../images/testImg02.jpg"
-import testImg03 from "../images/testImg03.jpg"
-import testImg04 from "../images/testImg04.jpg"
-import testImg05 from "../images/testImg05.jpg"
-import testImg07 from "../images/testImg07.jpg"
-import testImg08 from "../images/testImg08.jpg"
-import patientAvatar from "../../assets/images/patient-avatar.png";
-
 export const testimonials = [
-    {
-      name: "John Doe",
-      rating: 5,
-      content: "The care and attention I received at this hospital were exceptional. Highly recommend!",
-      photo: testImg02
-    },
-    {
-      name: "Jane Smith",
-      rating: 4,
-      content: "The facilities were top-notch, and the staff was very professional and caring.",
-      photo: testImg03
-    },
-    {
-      name: "Robert Johnson",
-      rating: 5,
-      content: "Excellent service and friendly staff. My experience was beyond satisfactory.",
-      photo: testImg04
-    },
-    {
-      name: "Emily Davis",
-      rating: 4,
-      content: "The treatment was effective, and the doctors were very knowledgeable and supportive.",
-      photo: patientAvatar
-    },
-    {
-      name: "Michael Brown",
-      rating: 5,
-      content: "Outstanding service from start to finish. I felt well taken care of throughout my visit.",
-      photo: testImg07
-    },
-    {
-      name: "Sarah Wilson",
-      rating: 4,
-      content: "Professional care and modern facilities. I appreciated the thoroughness of the medical staff.",
-      photo: testImg08
-    },
-    {
-      name: "Laura Martinez",
-      rating: 4,
-      content: "Great hospital with caring staff. The services provided were above expectations.",
-      photo: testImg01
-    },
-    {
-      name: "James Anderson",
-      rating: 5,
-      content: "Top-quality healthcare and a supportive environment. Highly recommended for any medical needs.",
-      photo: testImg02
-    },
-    {
-      name: "Sophia Taylor",
-      rating: 4,
-      content: "Efficient service and a comfortable environment. I felt well cared for during my stay.",
-      photo: testImg05
-    }
-  ];
-  
+  {
+    name: "Arjun Mehta",
+    rating: 5,
+    content: "HealthBridge helped me check our PM-JAY eligibility in seconds. We got my father's surgery done cashless without any hassle!",
+    photo: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=150"
+  },
+  {
+    name: "Dr. Sunita Rao",
+    rating: 5,
+    content: "As a clinician, seeing patients arrive with their AI pre-appointment summaries speeds up my triage time significantly.",
+    photo: "https://images.unsplash.com/photo-1594824813573-246434de83fb?auto=format&fit=crop&q=80&w=150"
+  },
+  {
+    name: "Rajesh Kumar",
+    rating: 5,
+    content: "I searched my brand prescription and found generic alternatives that saved me over 80% on my monthly diabetes medicines.",
+    photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150"
+  },
+  {
+    name: "Priya Sharma",
+    rating: 5,
+    content: "Checking live ICU bed availability across hospitals during my family's emergency saved us crucial travel time.",
+    photo: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150"
+  },
+  {
+    name: "Vikram Malhotra",
+    rating: 5,
+    content: "The out-of-pocket cost calculator gave us a clear breakdown of surgery charges, so there were no surprise billing items.",
+    photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150"
+  },
+  {
+    name: "Aisha Patel",
+    rating: 5,
+    content: "I applied for a medical loan for my dental treatment directly through the portal and selected a comfortable 12-month EMI.",
+    photo: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"
+  }
+];

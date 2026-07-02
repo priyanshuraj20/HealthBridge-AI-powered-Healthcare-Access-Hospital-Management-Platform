@@ -25,7 +25,7 @@ const Feedback = ({reviews, totalRating}) => {
                   </p>
                   <div className="flex sm:hidden mt-2">
                     {[...Array(review?.rating).keys()].map((_,index) => (
-                      <AiFillStar key={index} color="#0067FF"/>
+                      <AiFillStar key={index} color="#FEB60D"/>
                     ))}
                   </div>
                   <p className="text-[15px] text-textColor mt-1 font-[400]">
@@ -35,7 +35,7 @@ const Feedback = ({reviews, totalRating}) => {
               </div>
               <div className="hidden sm:flex sm:gap-1">
                 {[...Array(review?.rating).keys()].map((_,index) => (
-                  <AiFillStar key={index} color="#0067FF"/>
+                  <AiFillStar key={index} color="#FEB60D"/>
                 ))}
               </div>
             </div>

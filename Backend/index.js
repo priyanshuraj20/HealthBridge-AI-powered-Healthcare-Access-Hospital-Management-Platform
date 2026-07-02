@@ -9,6 +9,14 @@ import doctorRoute from "./Routes/doctor.js";
 import reviewRoute from "./Routes/review.js";
 import bookingRoute from "./Routes/booking.js";
 import messageRoute from "./Routes/message.js";
+import prescriptionRoute from "./Routes/prescription.js";
+import reportRoute from "./Routes/report.js";
+import aiRoute from "./Routes/ai.js";
+import { seedDatabase } from "./utils/seeder.js";
+import hospitalRoute from "./Routes/hospital.js";
+import affordabilityRoute from "./Routes/affordability.js";
+import financialRoute from "./Routes/financial.js";
+import pharmacyRoute from "./Routes/pharmacy.js";
 
 dotenv.config();
 
@@ -31,6 +39,7 @@ const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URL);
     console.log("Database connected successfully");
+    await seedDatabase();
   } catch (err) {
     console.log("Database connection falied!");
   }
@@ -46,6 +55,13 @@ app.use("/doctors", doctorRoute);
 app.use("/reviews", reviewRoute);
 app.use("/bookings", bookingRoute);
 app.use("/messages", messageRoute);
+app.use("/prescriptions", prescriptionRoute);
+app.use("/reports", reportRoute);
+app.use("/ai", aiRoute);
+app.use("/hospitals", hospitalRoute);
+app.use("/affordability", affordabilityRoute);
+app.use("/financial", financialRoute);
+app.use("/pharmacy", pharmacyRoute);
 
 app.listen(port, () => {
   connectDB();

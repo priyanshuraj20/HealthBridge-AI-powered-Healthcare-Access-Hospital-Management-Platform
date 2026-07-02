@@ -24,10 +24,10 @@ const Tabs = ({ tab, setTab }) => {
       try {
         const res = await fetch(`${BASE_URL}/doctors/deleteAccount`, {
           method: "DELETE",
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          }
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${localStorage.getItem("token")}`
+            }
         });
   
         const result = await res.json();

@@ -36,25 +36,27 @@ const Testimonials = () => {
         >
           {testimonials.map((item, index) => (
             <SwiperSlide key={index}>
-              <div className="py-[30px] px-5 max-w-[400px] rounded-3">
-                <div className="flex items-center flex-wrap gap-3">
-                  <figure className="h-12 w-12 rounded-lg overflow-hidden">
-                    <img src={item.photo} alt="" className="w-full h-full rounded-lg"/>
-                  </figure>
-                  <div>
-                    <h4 className="text-[18px] leading-[30px] font-[600] text-headingColor">
-                      {item.name}
-                    </h4>
-                    <div className="flex">
-                      {[...Array(item.rating)].map((_, i) => (
-                        <HiStar key={i} className="text-yellowColor w-5 h-5" />
-                      ))}
+              <div className="py-6 px-5 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between h-[180px]">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <figure className="h-11 w-11 rounded-full overflow-hidden border border-teal-500/20">
+                      <img src={item.photo} alt="" className="w-full h-full object-cover"/>
+                    </figure>
+                    <div>
+                      <h4 className="text-[15px] leading-tight font-bold text-headingColor">
+                        {item.name}
+                      </h4>
+                      <div className="flex mt-1">
+                        {[...Array(item.rating)].map((_, i) => (
+                          <HiStar key={i} className="text-yellowColor w-4 h-4" />
+                        ))}
+                      </div>
                     </div>
                   </div>
+                  <p className="text-[13px] leading-relaxed mt-3 text-textColor font-medium italic">
+                    "{item.content}"
+                  </p>
                 </div>
-                <p className="text-[14px] leading-4 mt-4 text-textColor font-[400]">
-                  {item.content}
-                </p>
               </div>
             </SwiperSlide>
           ))}

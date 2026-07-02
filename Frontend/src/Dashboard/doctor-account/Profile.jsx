@@ -54,7 +54,7 @@ const Profile = ({ doctorData }) => {
         method: "PUT",
         headers: {
           "content-type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
         body: JSON.stringify(formData),
       });
@@ -507,7 +507,7 @@ const Profile = ({ doctorData }) => {
               <img
                 src={formData.photo}
                 alt="patient"
-                className="w-full rounded-full border-2 border-[#0066ff61] border-solid"
+                className="w-full rounded-full border-2 border-[#0d948861] border-solid"
               />
             </figure>
           )}
@@ -522,7 +522,7 @@ const Profile = ({ doctorData }) => {
             />
             <label
               htmlFor="customFile"
-              className="absolute top-0 left-0 w-full h-full flex items-center justify-center px-[0.75rem] py-[0.375rem] text-[15px] leading-6 overflow-hodden bg-[#0066ff46] text-headingColor font-[600] rounded-lg cursor-pointer"
+              className="absolute top-0 left-0 w-full h-full flex items-center justify-center px-[0.75rem] py-[0.375rem] text-[15px] leading-6 overflow-hidden bg-[#0d948846] text-headingColor font-[600] rounded-lg cursor-pointer"
             >
               Upload Photo
             </label>

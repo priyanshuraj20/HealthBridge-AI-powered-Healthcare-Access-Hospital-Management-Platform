@@ -1,0 +1,44 @@
+{
+  "schemes": [
+    {
+      "id": "pmjay",
+      "name": "Ayushman Bharat (PM-JAY)",
+      "incomeThreshold": 250000,
+      "familySizeLimit": 8,
+      "requiredDocuments": [
+        "Aadhaar Card",
+        "Ration Card (BPL)",
+        "Income Certificate"
+      ],
+      "coveredTreatments": [
+        "Cardiology",
+        "Neurology",
+        "Orthopedics",
+        "Oncology",
+        "General Surgery"
+      ],
+      "maxCoverage": 500000,
+      "description": "National public health insurance fund that aims to provide free access to healthcare for low-income earners in India."
+    },
+    {
+      "id": "state-care",
+      "name": "State Chief Minister Health Scheme",
+      "incomeThreshold": 350000,
+      "familySizeLimit": 6,
+      "requiredDocuments": [
+        "Aadhaar Card",
+        "Income Certificate",
+        "Domicile Certificate"
+      ],
+      "coveredTreatments": [
+        "Pediatrics",
+        "Ophthalmology",
+        "Dermatology",
+        "General Surgery",
+        "Obstetrics"
+      ],
+      "maxCoverage": 300000,
+      "description": "State-sponsored healthcare program to cover medical expenses for middle and lower-income group families."
+    }
+  ]
+}

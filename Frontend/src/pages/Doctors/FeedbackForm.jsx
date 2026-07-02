@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FaStar } from "react-icons/fa";
 import { useParams } from "react-router-dom";
-import { BASE_URL, token } from "../../config.js";
+import { BASE_URL } from "../../config.js";
 import {toast} from "react-toastify"
 import Loading from "../../components/Loader/Loading.jsx";
 
@@ -27,7 +27,7 @@ const FeedbackForm = () => {
         method: "POST",
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${localStorage.getItem("token")}`
         },
         body: JSON.stringify({ rating, reviewText })
       });
@@ -94,7 +94,7 @@ const FeedbackForm = () => {
             Share you feedback or suggestions*
           </h3>
           <textarea
-            className="border border-solid border-[#0066ff30] focus:outline outline-primaryColor w-full py-3 px-4 rounded-md"
+            className="border border-solid border-[#0d948830] focus:outline outline-primaryColor w-full py-3 px-4 rounded-md"
             rows="5"
             placeholder="Write your experience"
             onChange={(e) => setReviewText(e.target.value)}
