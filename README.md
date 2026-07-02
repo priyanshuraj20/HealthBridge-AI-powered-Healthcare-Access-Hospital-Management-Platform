@@ -1,5 +1,7 @@
 # HealthBridge – AI-powered Healthcare Access & Hospital Management Platform
 
+![HealthBridge Homepage](./homepage_screenshot.png)
+
 HealthBridge is a full-stack, production-quality medical portal designed to resolve transparency in healthcare access. It enables patients to check insurance policy coverages, calculate out-of-pocket patient co-pays, verify PM-JAY (Ayushman Bharat) eligibility, check live hospital bed counts, compare medical treatment costs, find generic drug alternatives, and book medical consultations with AI assistants.
 
 ---
