@@ -5,9 +5,24 @@ import Review from "../models/ReviewSchema.js";
 export const updateDoctor = async (req, res) => {
   const id = req.params.id;
   try {
+    const body = { ...req.body };
+    if (body.isTelemedicine !== undefined) {
+      const TELEMEDICINE_SPECIALTIES = [
+        "General Physician", "Psychiatry", "Follow-up Care", "Pediatrics", 
+        "General Medicine", "Psychiatry/Mental Health", "Pediatric Consults"
+      ];
+      const spec = body.specialization || (await Doctor.findById(id))?.specialization || "";
+      const acceptsTelemedicine = TELEMEDICINE_SPECIALTIES.some(s => 
+        spec.toLowerCase().includes(s.toLowerCase())
+      );
+      if (!acceptsTelemedicine) {
+        body.isTelemedicine = false;
+      }
+    }
+
     const updatedDoctor = await Doctor.findByIdAndUpdate(
       id,
-      { $set: req.body },
+      { $set: body },
       { new: true, select: "-password" }
     );
     res

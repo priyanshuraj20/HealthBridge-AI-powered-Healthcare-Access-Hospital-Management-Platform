@@ -151,6 +151,14 @@ export const onboardDoctor = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashPassword = await bcrypt.hash(password, salt);
 
+    const TELEMEDICINE_SPECIALTIES = [
+      "General Physician", "Psychiatry", "Follow-up Care", "Pediatrics", 
+      "General Medicine", "Psychiatry/Mental Health", "Pediatric Consults"
+    ];
+    const acceptsTelemedicine = TELEMEDICINE_SPECIALTIES.some(s => 
+      (specialization || "").toLowerCase().includes(s.toLowerCase())
+    );
+
     const doctor = new Doctor({
       hospital: branchId,
       name,
@@ -158,7 +166,8 @@ export const onboardDoctor = async (req, res) => {
       password: hashPassword,
       ticketPrice: ticketPrice || 500,
       specialization,
-      department
+      department,
+      isTelemedicine: acceptsTelemedicine && req.body.isTelemedicine ? true : false
     });
 
     await doctor.save();

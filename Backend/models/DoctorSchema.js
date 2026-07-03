@@ -14,6 +14,7 @@ const DoctorSchema = new mongoose.Schema({
   },
   specialization: { type: String, default: "" },
   department: { type: String, default: "" },
+  isTelemedicine: { type: Boolean, default: false },
   languages: { type: [String], default: [] },
   qualifications: {
     type: Array,

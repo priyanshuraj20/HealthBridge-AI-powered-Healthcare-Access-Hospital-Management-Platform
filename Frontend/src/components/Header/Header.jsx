@@ -3,6 +3,7 @@ import userImg from "../../assets/images/defaultUser.jpg";
 import { NavLink, Link, useNavigate } from "react-router-dom";
 import { BiMenu, BiX, BiSearch } from "react-icons/bi";
 import { authContext } from "../../context/AuthContext.jsx";
+import { t } from "../../utils/translate.js";
 
 const navLinks = [
   { path: "/home",         display: "Home" },
@@ -77,7 +78,7 @@ const Header = () => {
                         : "text-textColor text-[15px] leading-7 font-[500] hover:text-primaryColor"
                     }
                   >
-                    {link.display}
+                    {t(link.display)}
                   </NavLink>
                 </li>
               ))}
@@ -98,6 +99,36 @@ const Header = () => {
                 className="bg-transparent text-[11px] text-headingColor focus:outline-none w-36 lg:w-44 font-medium"
               />
             </form>
+
+            {/* Language Switcher */}
+            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-full border border-gray-200">
+              <button
+                onClick={() => {
+                  localStorage.setItem("lang", "en");
+                  window.location.reload();
+                }}
+                className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full transition-all leading-none ${
+                  (localStorage.getItem("lang") || "en") === "en"
+                    ? "bg-primaryColor text-white shadow-sm"
+                    : "text-textColor hover:text-headingColor"
+                }`}
+              >
+                EN
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem("lang", "hi");
+                  window.location.reload();
+                }}
+                className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full transition-all leading-none ${
+                  localStorage.getItem("lang") === "hi"
+                    ? "bg-primaryColor text-white shadow-sm"
+                    : "text-textColor hover:text-headingColor"
+                }`}
+              >
+                HI
+              </button>
+            </div>
 
             {token && user ? (
               <div>

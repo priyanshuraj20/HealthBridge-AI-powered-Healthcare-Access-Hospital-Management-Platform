@@ -31,6 +31,7 @@ export default function OrgDashboard() {
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [showEditDoctorModal, setShowEditDoctorModal] = useState(false);
   const [editDoctorForm, setEditDoctorForm] = useState(null);
+  const [orgProfile, setOrgProfile] = useState(null);
   
   const token = localStorage.getItem("token");
 
@@ -39,7 +40,7 @@ export default function OrgDashboard() {
     name: "", location: "", address: "", city: "", phone: "", licenseNumber: "", totalBeds: 50, totalIcuBeds: 10, specialties: ""
   });
   const [doctorForm, setDoctorForm] = useState({
-    name: "", email: "", password: "", ticketPrice: 500, specialization: "", department: "", branchId: ""
+    name: "", email: "", password: "", ticketPrice: 500, specialization: "", department: "", branchId: "", isTelemedicine: false
   });
   const [staffForm, setStaffForm] = useState({
     name: "", email: "", password: "", role: "receptionist", branchId: ""
@@ -89,6 +90,18 @@ export default function OrgDashboard() {
     }
   };
 
+  const fetchOrgProfile = async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/users/profile/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOrgProfile(data.data);
+      }
+    } catch (e) {}
+  };
+
   const fetchBranches = async () => {
     setLoading(true);
     try {
@@ -117,6 +130,7 @@ export default function OrgDashboard() {
   };
 
   useEffect(() => {
+    fetchOrgProfile();
     fetchBranches();
     fetchAllDoctors();
   }, []);
@@ -302,6 +316,21 @@ export default function OrgDashboard() {
   return (
     <div className="container max-w-[1200px] mx-auto px-4 py-10 min-h-[80vh]">
       
+      {/* ─── Verification Status Banner ─── */}
+      {(!orgProfile || orgProfile.verificationStatus === "Pending") && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-4 py-3.5 rounded-2xl mb-6 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <span>⚠️</span>
+            <p className="font-semibold">
+              Your hospital profile is under review — some features are limited until approved.
+            </p>
+          </div>
+          <span className="bg-amber-600 text-white text-[9px] font-extrabold uppercase px-2 py-0.5 rounded shadow-sm">
+            Pending Verification
+          </span>
+        </div>
+      )}
+
       {/* ─── Back Arrow & Branch Context Header ─── */}
       {selectedBranch ? (
         <div className="mb-8 border-b pb-6">
@@ -784,6 +813,27 @@ export default function OrgDashboard() {
                 <input type="text" placeholder="Department" required className="px-3 py-2 border rounded-lg text-xs" value={doctorForm.department} onChange={(e) => setDoctorForm({...doctorForm, department: e.target.value})} />
               </div>
               <input type="number" placeholder="Consultation Fee (INR)" required className="w-full px-3 py-2 border rounded-lg text-xs" value={doctorForm.ticketPrice} onChange={(e) => setDoctorForm({...doctorForm, ticketPrice: parseInt(e.target.value)})} />
+              
+              {/* Telemedicine Toggle */}
+              <div className="flex items-center gap-2 p-2.5 border border-gray-200 rounded-xl bg-gray-50/50">
+                <input 
+                  type="checkbox"
+                  id="isTelemedicineOnboard"
+                  disabled={!["general physician", "psychiatry", "follow-up care", "pediatrics", "general medicine", "psychiatry/mental health", "pediatric consults"].some(s => (doctorForm.specialization || "").toLowerCase().includes(s))}
+                  checked={doctorForm.isTelemedicine || false}
+                  onChange={(e) => setDoctorForm({ ...doctorForm, isTelemedicine: e.target.checked })}
+                  className="cursor-pointer accent-primaryColor"
+                />
+                <label htmlFor="isTelemedicineOnboard" className="text-[11px] font-bold text-headingColor cursor-pointer">
+                  Enable Online/Video Consultation (Telemedicine)
+                </label>
+              </div>
+              {!["general physician", "psychiatry", "follow-up care", "pediatrics", "general medicine", "psychiatry/mental health", "pediatric consults"].some(s => (doctorForm.specialization || "").toLowerCase().includes(s)) && (
+                <p className="text-[9px] text-gray-400">
+                  ℹ️ Telemedicine is only allowed for consultation-style specializations (e.g. General Physician, Pediatrics, Psychiatry, General Medicine).
+                </p>
+              )}
+
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowDoctorModal(false)} className="px-4 py-2 border rounded-lg text-xs font-semibold text-textColor">Cancel</button>
                 <button type="submit" className="px-4 py-2 bg-primaryColor text-white rounded-lg text-xs font-semibold">Onboard Doctor</button>
@@ -861,6 +911,27 @@ export default function OrgDashboard() {
                 value={editDoctorForm.ticketPrice} 
                 onChange={(e) => setEditDoctorForm({...editDoctorForm, ticketPrice: parseInt(e.target.value) || 0})} 
               />
+
+              {/* Telemedicine Toggle */}
+              <div className="flex items-center gap-2 p-2.5 border border-gray-200 rounded-xl bg-gray-50/50">
+                <input 
+                  type="checkbox"
+                  id="isTelemedicineEdit"
+                  disabled={!["general physician", "psychiatry", "follow-up care", "pediatrics", "general medicine", "psychiatry/mental health", "pediatric consults"].some(s => (editDoctorForm.specialization || "").toLowerCase().includes(s))}
+                  checked={editDoctorForm.isTelemedicine || false}
+                  onChange={(e) => setEditDoctorForm({ ...editDoctorForm, isTelemedicine: e.target.checked })}
+                  className="cursor-pointer accent-primaryColor"
+                />
+                <label htmlFor="isTelemedicineEdit" className="text-[11px] font-bold text-headingColor cursor-pointer">
+                  Enable Online/Video Consultation (Telemedicine)
+                </label>
+              </div>
+              {!["general physician", "psychiatry", "follow-up care", "pediatrics", "general medicine", "psychiatry/mental health", "pediatric consults"].some(s => (editDoctorForm.specialization || "").toLowerCase().includes(s)) && (
+                <p className="text-[9px] text-gray-400">
+                  ℹ️ Telemedicine is only allowed for consultation-style specializations (e.g. General Physician, Pediatrics, Psychiatry, General Medicine).
+                </p>
+              )}
+
               <div className="flex justify-end gap-2 pt-2">
                 <button 
                   type="button" 

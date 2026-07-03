@@ -10,6 +10,7 @@ import SymptomChecker from "./SymptomChecker.jsx";
 import PrescriptionOCR from "./PrescriptionOCR.jsx";
 import PatientHomepage from "./PatientHomepage.jsx";
 import FamilyVault from "./FamilyVault.jsx";
+import { t } from "../../utils/translate.js";
 import useGetProfile from "../../hooks/useFetchData.js";
 import { BASE_URL, token } from "../../config.js";
 import Loading from "../../components/Loader/Loading.jsx";
@@ -113,7 +114,7 @@ const UserAccount = () => {
                       : "text-headingColor bg-gray-50 hover:bg-gray-100"
                   }`}
                 >
-                  Healthcare Home
+                  {t("Healthcare Home")}
                 </button>
                 <button
                   onClick={() => setTab("settings")}
@@ -123,7 +124,7 @@ const UserAccount = () => {
                       : "text-headingColor bg-gray-50 hover:bg-gray-100"
                   }`}
                 >
-                  Profile Settings
+                  {t("Profile Settings")}
                 </button>
                 <button
                   onClick={() => setTab("bookings")}
@@ -133,7 +134,7 @@ const UserAccount = () => {
                       : "text-headingColor bg-gray-50 hover:bg-gray-100"
                   }`}
                 >
-                  My Appointments
+                  {t("My Appointments")}
                 </button>
                 <button
                   onClick={() => setTab("reports")}
@@ -143,7 +144,7 @@ const UserAccount = () => {
                       : "text-headingColor bg-gray-50 hover:bg-gray-100"
                   }`}
                 >
-                  Medical Reports
+                  {t("Medical Reports")}
                 </button>
                 <button
                   onClick={() => setTab("prescriptions")}
@@ -153,7 +154,7 @@ const UserAccount = () => {
                       : "text-headingColor bg-gray-50 hover:bg-gray-100"
                   }`}
                 >
-                  Prescriptions
+                  {t("Prescriptions")}
                 </button>
                 <button
                   onClick={() => setTab("symptoms")}
@@ -163,7 +164,7 @@ const UserAccount = () => {
                       : "text-headingColor bg-gray-50 hover:bg-gray-100"
                   }`}
                 >
-                  Symptom Checker
+                  {t("Symptom Checker")}
                 </button>
                 <button
                   onClick={() => setTab("ocr")}
@@ -173,7 +174,7 @@ const UserAccount = () => {
                       : "text-headingColor bg-gray-50 hover:bg-gray-100"
                   }`}
                 >
-                  Prescription OCR
+                  {t("Prescription OCR")}
                 </button>
                 <button
                   onClick={() => setTab("family-vault")}
@@ -183,7 +184,7 @@ const UserAccount = () => {
                       : "text-headingColor bg-gray-50 hover:bg-gray-100"
                   }`}
                 >
-                  👨‍👩‍👧 Family & Ayushman Vault
+                  👨‍👩‍👧 {t("Family & Ayushman Vault")}
                 </button>
               </div>
 

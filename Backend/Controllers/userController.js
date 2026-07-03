@@ -2,6 +2,7 @@ import User from "../models/UserSchema.js";
 import Booking from "../models/BookingSchema.js";
 import Doctor from "../models/DoctorSchema.js";
 import Review from "../models/ReviewSchema.js";
+import Organization from "../models/OrganizationSchema.js";
 
 export const updateUser = async (req, res) => {
   const id = req.params.id;
@@ -47,7 +48,10 @@ export const getAllUser = async (req, res) => {
 export const getUserProfile = async (req, res) => {
   const userId = req.userId;
   try {
-    const user = await User.findById(userId);
+    let user = await User.findById(userId);
+    if (!user) {
+      user = await Organization.findById(userId);
+    }
     if (!user) {
       return res
         .status(404)
