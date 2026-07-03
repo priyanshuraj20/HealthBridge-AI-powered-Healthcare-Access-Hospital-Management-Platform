@@ -1,5 +1,6 @@
 import Doctor from "../models/DoctorSchema.js";
 import Booking from "../models/BookingSchema.js";
+import Review from "../models/ReviewSchema.js";
 
 export const updateDoctor = async (req, res) => {
   const id = req.params.id;
@@ -22,13 +23,13 @@ export const updateDoctor = async (req, res) => {
 };
 
 export const deleteDoctor = async (req, res) => {
-  const id = req.userId;
+  const id = req.params.id || req.userId;
   try {
     // Delete doctor's bookings first
     await Booking.deleteMany({ doctor: id });
 
     //delete doctor's review
-    await Review.deleteMany({doctor: id});
+    await Review.deleteMany({ doctor: id });
 
     const deletedDoctor = await Doctor.findByIdAndDelete(id);
     res.status(200).json({ success: true, message: "Successfully Deleted", data: deletedDoctor});
@@ -68,9 +69,13 @@ export const getAll = async (req, res) => {
 // Controller function to get all doctors
 export const getAllDoctors = async (req, res) => {
   try {
-    const { query, specialization, department, gender, minFee, maxFee, sortBy, page, limit } = req.query;
+    const { query, specialization, department, gender, minFee, maxFee, sortBy, page, limit, hospital } = req.query;
 
     let filter = { isApproved: "approved" };
+
+    if (hospital) {
+      filter.hospital = hospital;
+    }
 
     if (query) {
       filter.$or = [

@@ -29,6 +29,8 @@ export default function OrgDashboard() {
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [showStaffModal, setShowStaffModal] = useState(false);
+  const [showEditDoctorModal, setShowEditDoctorModal] = useState(false);
+  const [editDoctorForm, setEditDoctorForm] = useState(null);
   
   const token = localStorage.getItem("token");
 
@@ -42,6 +44,50 @@ export default function OrgDashboard() {
   const [staffForm, setStaffForm] = useState({
     name: "", email: "", password: "", role: "receptionist", branchId: ""
   });
+
+  const handleDeleteDoctor = async (doctorId) => {
+    if (!window.confirm("Are you sure you want to remove this doctor from clinical branches?")) return;
+    try {
+      const res = await fetch(`${BASE_URL}/doctors/${doctorId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      toast.success("Doctor removed successfully!");
+      fetchAllDoctors();
+    } catch (err) {
+      toast.error(err.message || "Failed to remove doctor");
+    }
+  };
+
+  const handleEditDoctorClick = (doctor) => {
+    setEditDoctorForm(doctor);
+    setShowEditDoctorModal(true);
+  };
+
+  const handleEditDoctorSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${BASE_URL}/doctors/${editDoctorForm._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(editDoctorForm)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      toast.success("Doctor details updated successfully!");
+      setShowEditDoctorModal(false);
+      fetchAllDoctors();
+    } catch (err) {
+      toast.error(err.message || "Failed to update doctor details");
+    }
+  };
 
   const fetchBranches = async () => {
     setLoading(true);
@@ -415,6 +461,7 @@ export default function OrgDashboard() {
                         <th className="p-3 border-b">Consult Fee</th>
                         <th className="p-3 border-b">Gender</th>
                         <th className="p-3 border-b">Rating</th>
+                        <th className="p-3 border-b">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -425,6 +472,20 @@ export default function OrgDashboard() {
                           <td className="p-3 font-bold text-headingColor">{doc.ticketPrice} INR</td>
                           <td className="p-3 capitalize">{doc.gender || "N/A"}</td>
                           <td className="p-3">⭐ {doc.averageRating} ({doc.totalRating})</td>
+                          <td className="p-3 flex gap-2">
+                            <button
+                              onClick={() => handleEditDoctorClick(doc)}
+                              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1.5 rounded-lg transition-all"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteDoctor(doc._id)}
+                              className="bg-red-50 hover:bg-red-100 text-red-600 font-bold px-2.5 py-1.5 rounded-lg transition-all"
+                            >
+                              Remove
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -752,6 +813,68 @@ export default function OrgDashboard() {
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowStaffModal(false)} className="px-4 py-2 border rounded-lg text-xs font-semibold text-textColor">Cancel</button>
                 <button type="submit" className="px-4 py-2 bg-primaryColor text-white rounded-lg text-xs font-semibold">Onboard Staff</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- Edit Doctor Modal --- */}
+      {showEditDoctorModal && editDoctorForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-[500px] shadow-xl border">
+            <h3 className="text-lg font-extrabold text-headingColor mb-4 flex items-center gap-2">
+              <FaUserMd className="text-primaryColor"/> Edit Doctor Details
+            </h3>
+            <form onSubmit={handleEditDoctorSubmit} className="space-y-4">
+              <input 
+                type="text" 
+                placeholder="Doctor's Full Name" 
+                required 
+                className="w-full px-3 py-2 border rounded-lg text-xs" 
+                value={editDoctorForm.name} 
+                onChange={(e) => setEditDoctorForm({...editDoctorForm, name: e.target.value})} 
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <input 
+                  type="text" 
+                  placeholder="Specialization" 
+                  required 
+                  className="px-3 py-2 border rounded-lg text-xs" 
+                  value={editDoctorForm.specialization} 
+                  onChange={(e) => setEditDoctorForm({...editDoctorForm, specialization: e.target.value})} 
+                />
+                <input 
+                  type="text" 
+                  placeholder="Department" 
+                  required 
+                  className="px-3 py-2 border rounded-lg text-xs" 
+                  value={editDoctorForm.department} 
+                  onChange={(e) => setEditDoctorForm({...editDoctorForm, department: e.target.value})} 
+                />
+              </div>
+              <input 
+                type="number" 
+                placeholder="Consultation Fee (INR)" 
+                required 
+                className="w-full px-3 py-2 border rounded-lg text-xs" 
+                value={editDoctorForm.ticketPrice} 
+                onChange={(e) => setEditDoctorForm({...editDoctorForm, ticketPrice: parseInt(e.target.value) || 0})} 
+              />
+              <div className="flex justify-end gap-2 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setShowEditDoctorModal(false)} 
+                  className="px-4 py-2 border rounded-lg text-xs font-semibold text-textColor"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-4 py-2 bg-primaryColor text-white rounded-lg text-xs font-semibold"
+                >
+                  Save Changes
+                </button>
               </div>
             </form>
           </div>

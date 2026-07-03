@@ -9,7 +9,8 @@ import {
   updateBeds,
   updateTreatments,
   getHospitalQueue,
-  checkInPatient
+  checkInPatient,
+  getSingleHospital
 } from "../Controllers/hospitalController.js";
 import { authenticate, restrict } from "../auth/verifyToken.js";
 
@@ -19,6 +20,7 @@ const router = express.Router();
 router.get("/", getAllHospitals);
 router.get("/beds", getBedsDashboard);
 router.get("/recommendations", getSmartRecommendations);
+router.get("/:id", getSingleHospital);
 
 // Branch Management (Corporate Admin only)
 router.post("/register-branch", authenticate, restrict(["org_admin"]), registerHospitalBranch);

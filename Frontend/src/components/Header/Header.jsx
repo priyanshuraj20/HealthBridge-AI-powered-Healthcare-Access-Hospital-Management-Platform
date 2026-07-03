@@ -6,7 +6,7 @@ import { authContext } from "../../context/AuthContext.jsx";
 
 const navLinks = [
   { path: "/home",         display: "Home" },
-  { path: "/doctors",      display: "Doctors" },
+  { path: "/doctors",      display: "Find Hospitals" },
   { path: "/video-call",   display: "Telemedicine" },
   { path: "/affordability",display: "Affordability" },
   { path: "/ai-guides",    display: "AI Assistant" },
@@ -92,7 +92,7 @@ const Header = () => {
               <BiSearch className="text-gray-400 w-3.5 h-3.5" />
               <input
                 type="text"
-                placeholder="Search doctors, services..."
+                placeholder="Search hospitals, treatments..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-transparent text-[11px] text-headingColor focus:outline-none w-36 lg:w-44 font-medium"
@@ -104,8 +104,8 @@ const Header = () => {
                 <Link
                   className="flex items-center gap-2"
                   to={`${
-                    role === "doctor"
-                      ? "/doctors/profile/me"
+                    role === "org_admin"
+                      ? "/organization/dashboard"
                       : role === "admin"
                       ? "/admin/dashboard"
                       : "/users/profile/me"

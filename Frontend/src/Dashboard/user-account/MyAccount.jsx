@@ -8,6 +8,7 @@ import MedicalReports from "./MedicalReports.jsx";
 import Prescriptions from "./Prescriptions.jsx";
 import SymptomChecker from "./SymptomChecker.jsx";
 import PrescriptionOCR from "./PrescriptionOCR.jsx";
+import PatientHomepage from "./PatientHomepage.jsx";
 import useGetProfile from "../../hooks/useFetchData.js";
 import { BASE_URL, token } from "../../config.js";
 import Loading from "../../components/Loader/Loading.jsx";
@@ -15,7 +16,7 @@ import Error from "../../components/Error/Error.jsx";
 import userPlaceholder from "../../assets/images/defaultUser.jpg";
 
 const UserAccount = () => {
-  const [tab, setTab] = useState("settings");
+  const [tab, setTab] = useState("homepage");
   const { dispatch } = useContext(authContext);
 
   const {
@@ -104,6 +105,16 @@ const UserAccount = () => {
             <div className="md:col-span-3 bg-white p-6 rounded-lg shadow-sm border border-gray-100">
               <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-100 pb-4">
                 <button
+                  onClick={() => setTab("homepage")}
+                  className={`p-2 px-4 text-xs font-semibold rounded transition-all ${
+                    tab === "homepage"
+                      ? "bg-primaryColor text-white"
+                      : "text-headingColor bg-gray-50 hover:bg-gray-100"
+                  }`}
+                >
+                  Healthcare Home
+                </button>
+                <button
                   onClick={() => setTab("settings")}
                   className={`p-2 px-4 text-xs font-semibold rounded transition-all ${
                     tab === "settings"
@@ -166,6 +177,7 @@ const UserAccount = () => {
               </div>
 
               {/* Tab Outputs */}
+              {tab === "homepage" && <PatientHomepage user={userData} setTab={setTab} />}
               {tab === "settings" && <ProfileSettings user={userData} />}
               {tab === "bookings" && <MyBookings />}
               {tab === "reports" && <MedicalReports />}

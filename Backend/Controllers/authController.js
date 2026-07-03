@@ -70,10 +70,6 @@ export const login = async (req, res) => {
     user = await User.findOne({ email });
 
     if (!user) {
-      user = await Doctor.findOne({ email });
-    }
-
-    if (!user) {
       const org = await Organization.findOne({ adminEmail: email });
       if (org) {
         user = {

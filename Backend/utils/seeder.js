@@ -47,6 +47,11 @@ const doctorNames = [
 
 export const seedDatabase = async () => {
   try {
+    const hospitalCount = await Hospital.countDocuments();
+    if (hospitalCount > 0) {
+      console.log("Database already seeded (hospitals found). Skipping seeding.");
+      return;
+    }
     console.log("Starting database seeding process...");
 
     // 1. Generate Hospitals

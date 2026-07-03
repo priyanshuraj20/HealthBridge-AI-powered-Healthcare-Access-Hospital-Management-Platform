@@ -281,3 +281,16 @@ export const updateTreatments = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// Get a single hospital by ID
+export const getSingleHospital = async (req, res) => {
+  try {
+    const hospital = await Hospital.findById(req.params.id);
+    if (!hospital) {
+      return res.status(404).json({ success: false, message: "Hospital not found" });
+    }
+    res.status(200).json({ success: true, data: hospital });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
