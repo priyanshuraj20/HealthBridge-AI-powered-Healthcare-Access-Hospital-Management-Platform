@@ -27,6 +27,7 @@ const AffordabilityHub = () => {
   const [hospitals, setHospitals] = useState([]);
   const [loadingHospitals, setLoadingHospitals] = useState(false);
   const [filters, setFilters] = useState({
+    query: "",
     specialty: "",
     insurance: "",
     budget: "",
@@ -88,7 +89,7 @@ const AffordabilityHub = () => {
     setLoadingHospitals(true);
     try {
       const res = await fetch(
-        `${BASE_URL}/hospitals/recommendations?specialty=${filters.specialty}&insurance=${filters.insurance}&budget=${filters.budget}&maxDistance=${filters.maxDistance}&maxWaitTime=${filters.maxWaitTime}`
+        `${BASE_URL}/hospitals/recommendations?query=${filters.query}&specialty=${filters.specialty}&insurance=${filters.insurance}&budget=${filters.budget}&maxDistance=${filters.maxDistance}&maxWaitTime=${filters.maxWaitTime}`
       );
       const json = await res.json();
       if (res.ok) {
@@ -146,7 +147,7 @@ const AffordabilityHub = () => {
   };
 
   const handleResetFilters = () => {
-    setFilters({ specialty: "", insurance: "", budget: "", maxDistance: "", maxWaitTime: "" });
+    setFilters({ query: "", specialty: "", insurance: "", budget: "", maxDistance: "", maxWaitTime: "" });
     setTimeout(() => fetchHospitals(), 50);
   };
 
@@ -678,6 +679,16 @@ const AffordabilityHub = () => {
               <h4 className="font-bold text-headingColor mb-4">Smart Hospital Filter</h4>
               <form onSubmit={handleApplyFilters} className="space-y-4">
                 <div>
+                  <label className="text-xs font-semibold text-headingColor block mb-1">Symptom / Surgery / Disease</label>
+                  <input
+                    type="text"
+                    value={filters.query}
+                    onChange={(e) => setFilters({ ...filters, query: e.target.value })}
+                    placeholder="e.g. Appendix, Hernia, Heart..."
+                    className="w-full p-2 border rounded text-xs text-textColor focus:outline-none focus:border-primaryColor bg-white"
+                  />
+                </div>
+                <div>
                   <label className="text-xs font-semibold text-headingColor block mb-1">Specialty</label>
                   <select
                     value={filters.specialty}
@@ -806,10 +817,21 @@ const AffordabilityHub = () => {
                           Treatment Costs
                         </span>
                         <div className="space-y-1.5">
+                          {filters.query && h.treatmentCosts.find(t => t.treatmentName.toLowerCase().includes(filters.query.toLowerCase())) ? (
+                            (() => {
+                              const matched = h.treatmentCosts.find(t => t.treatmentName.toLowerCase().includes(filters.query.toLowerCase()));
+                              return (
+                                <div className="bg-teal-100 border border-teal-200 p-2.5 rounded-lg mb-2 text-xs font-extrabold text-teal-800 flex justify-between animate-pulse">
+                                  <span>✨ Matched: {matched.treatmentName}</span>
+                                  <span>{matched.cost.toLocaleString("en-IN")} INR</span>
+                                </div>
+                              );
+                            })()
+                          ) : null}
                           {h.treatmentCosts.slice(0, 3).map((t, idx) => (
                             <div key={idx} className="flex justify-between text-xs text-textColor">
                               <span>{t.treatmentName}</span>
-                              <span className="font-bold text-headingColor">{t.cost} INR</span>
+                              <span className="font-bold text-headingColor">{t.cost.toLocaleString("en-IN")} INR</span>
                             </div>
                           ))}
                         </div>

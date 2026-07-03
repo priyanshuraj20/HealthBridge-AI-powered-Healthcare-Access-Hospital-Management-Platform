@@ -1,3 +1,74 @@
+import Hospital from "../models/HospitalSchema.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const configPath = path.join(__dirname, "../config/schemesConfig.json");
+
+const getSchemesConfig = () => {
+  try {
+    const raw = fs.readFileSync(configPath, "utf-8");
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error("Failed to read schemesConfig.json:", err.message);
+    return { schemes: [] };
+  }
+};
+
+const getDatabaseContext = async () => {
+  try {
+    const hospitals = await Hospital.find({});
+    const schemesConfig = getSchemesConfig();
+    
+    let context = "Here is the ACTUAL live data from our database. Use ONLY this data when referring to specific hospitals, treatment costs, distance, ratings, waiting times, bed availability, scheme eligibility thresholds, covered treatments, and required documents. Do NOT make up names, numbers, or rules:\n\n";
+    
+    context += "=== ELIGIBLE PUBLIC SCHEMES ===\n";
+    if (schemesConfig && schemesConfig.schemes) {
+      schemesConfig.schemes.forEach((s) => {
+        context += `- Scheme ID: ${s.id}\n`;
+        context += `  Name: ${s.name}\n`;
+        context += `  Max Coverage Limit: ${s.maxCoverage} INR\n`;
+        context += `  Income Threshold limit: ${s.incomeThreshold} INR per annum\n`;
+        context += `  Family Size Limit: ${s.familySizeLimit} members\n`;
+        context += `  Covered Treatments/Specialties: ${s.coveredTreatments.join(", ")}\n`;
+        context += `  Required Documents to apply: ${s.requiredDocuments.join(", ")}\n`;
+        context += `  Description: ${s.description}\n\n`;
+      });
+    }
+
+    context += "=== LIVE NETWORK HOSPITALS ===\n";
+    if (hospitals && hospitals.length > 0) {
+      hospitals.forEach((h) => {
+        context += `- Hospital Name: ${h.name}\n`;
+        context += `  Location: ${h.location}\n`;
+        context += `  Distance from user center: ${h.distance} km\n`;
+        context += `  Rating: ${h.rating}/5\n`;
+        context += `  Emergency / OPD Wait Time: ${h.waitingTime} minutes\n`;
+        context += `  Specialties: ${h.specialties.join(", ")}\n`;
+        context += `  Accepted Insurances/Schemes: ${h.supportedInsurances.join(", ")}\n`;
+        context += `  Beds Available:\n`;
+        context += `    ICU Beds: ${h.beds.icu.available} available (out of ${h.beds.icu.total})\n`;
+        context += `    General Beds: ${h.beds.general.available} available (out of ${h.beds.general.total})\n`;
+        context += `    Private Beds: ${h.beds.private.available} available (out of ${h.beds.private.total})\n`;
+        context += `    Emergency Beds: ${h.beds.emergency.available} available (out of ${h.beds.emergency.total})\n`;
+        context += `  Treatment Costs:\n`;
+        if (h.treatmentCosts && h.treatmentCosts.length > 0) {
+          h.treatmentCosts.forEach((tc) => {
+            context += `    * ${tc.treatmentName}: ${tc.cost} INR\n`;
+          });
+        }
+        context += "\n";
+      });
+    }
+    
+    return context;
+  } catch (err) {
+    console.error("Failed to generate database context:", err.message);
+    return "";
+  }
+};
+
 export const getOpenRouterResponse = async (messages, responseFormat = null) => {
   const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -237,10 +308,14 @@ export const financialCounsel = async (req, res) => {
     return res.status(400).json({ success: false, message: "Query message is required." });
   }
 
+  const dbContext = await getDatabaseContext();
+
   const messages = [
     {
       role: "system",
-      content: "You are a professional medical financial counselor. Answer the patient's questions about treatment affordability, medical loans, EMI payment tenures, and interest rates. Advise them on how to manage out-of-pocket expenses and navigate low-interest clinical financing options. Keep it helpful, clear, and reassuring.",
+      content: `You are a professional medical financial counselor. Answer the patient's questions about treatment affordability, medical loans, EMI payment tenures, and interest rates. Advise them on how to manage out-of-pocket expenses and navigate low-interest clinical financing options. Keep it helpful, clear, and reassuring.
+Use the following real-time database to give specific cost comparisons and affordability recommendations:
+${dbContext}`,
     },
     {
       role: "user",
@@ -269,10 +344,14 @@ export const insuranceGuide = async (req, res) => {
     return res.status(400).json({ success: false, message: "Query message is required." });
   }
 
+  const dbContext = await getDatabaseContext();
+
   const messages = [
     {
       role: "system",
-      content: "You are an expert on health insurance policies and public schemes like Ayushman Bharat (PM-JAY). Explain how network hospital listings, co-payments, deductibles, pre-authorizations, and rule-based coverages function. Translate complex policy terms into plain instructions for patients. Remain factual and guiding.",
+      content: `You are an expert on health insurance policies and public schemes like Ayushman Bharat (PM-JAY). Explain how network hospital listings, co-payments, deductibles, pre-authorizations, and rule-based coverages function. Translate complex policy terms into plain instructions for patients. Remain factual and guiding.
+If the user asks about specific hospitals, treatment costs, or eligibility rules, use the following real-time system data:
+${dbContext}`,
     },
     {
       role: "user",
@@ -300,10 +379,14 @@ export const explainCost = async (req, res) => {
     return res.status(400).json({ success: false, message: "Treatment name and cost are required." });
   }
 
+  const dbContext = await getDatabaseContext();
+
   const messages = [
     {
       role: "system",
-      content: "You are a clinical billing analyst. Break down the typical costs associated with the provided surgical or medical treatment (e.g. surgeon fees, anesthesiologist charges, OT charges, bed/room rents, post-op nursing care, drugs). Explain what each item means and why it contributes to the final amount. Suggest standard ways to manage or reduce bills (e.g. generic medicines, choosing shared rooms).",
+      content: `You are a clinical billing analyst. Break down the typical costs associated with the provided surgical or medical treatment (e.g. surgeon fees, anesthesiologist charges, OT charges, bed/room rents, post-op nursing care, drugs). Explain what each item means and why it contributes to the final amount. Suggest standard ways to manage or reduce bills (e.g. generic medicines, choosing shared rooms).
+You can refer to the following real-time system database for specific hospital pricing on this or similar treatments:
+${dbContext}`,
     },
     {
       role: "user",
@@ -331,10 +414,14 @@ export const hospitalRecommend = async (req, res) => {
     return res.status(400).json({ success: false, message: "Query message is required." });
   }
 
+  const dbContext = await getDatabaseContext();
+
   const messages = [
     {
       role: "system",
-      content: "You are a patient referral coordinator. Help patients choose the correct clinic or hospital based on their priority (e.g. lowest cost, shortest wait time, maximum rating, bed availability, or closest location). Reassure the patient and provide sensible suggestions. Recommend scheduling appointments for non-emergency care.",
+      content: `You are a patient referral coordinator. Help patients choose the correct clinic or hospital based on their priority (e.g. lowest cost, shortest wait time, maximum rating, bed availability, or closest location). Reassure the patient and provide sensible suggestions. Recommend scheduling appointments for non-emergency care.
+Use the following real-time database to give specific recommendations:
+${dbContext}`,
     },
     {
       role: "user",

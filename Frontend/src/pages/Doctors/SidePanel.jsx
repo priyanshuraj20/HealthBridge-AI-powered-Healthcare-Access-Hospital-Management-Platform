@@ -9,6 +9,7 @@ const SidePanel = ({ doctorId, ticketPrice, timeSlots }) => {
   const [selectedSlotIndex, setSelectedSlotIndex] = useState("");
   const [symptoms, setSymptoms] = useState("");
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [consultationType, setConsultationType] = useState("physical");
 
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -43,6 +44,7 @@ const SidePanel = ({ doctorId, ticketPrice, timeSlots }) => {
           appointmentDate: selectedDate,
           timeSlot,
           symptoms,
+          consultationType,
         }),
       });
 
@@ -105,6 +107,37 @@ const SidePanel = ({ doctorId, ticketPrice, timeSlots }) => {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Consultation Mode */}
+        <div>
+          <label className="text-sm font-semibold text-headingColor block mb-1">
+            Consultation Mode *
+          </label>
+          <div className="flex gap-4 p-2 bg-gray-50 rounded-md border">
+            <label className="flex items-center gap-1.5 text-xs text-textColor font-semibold cursor-pointer">
+              <input
+                type="radio"
+                name="consultationType"
+                value="physical"
+                checked={consultationType === "physical"}
+                onChange={() => setConsultationType("physical")}
+                className="accent-primaryColor"
+              />
+              In-Person Visit
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-textColor font-semibold cursor-pointer">
+              <input
+                type="radio"
+                name="consultationType"
+                value="video-instant"
+                checked={consultationType === "video-instant"}
+                onChange={() => setConsultationType("video-instant")}
+                className="accent-primaryColor"
+              />
+              Video Consultation
+            </label>
+          </div>
         </div>
 
         {/* Symptoms Description */}

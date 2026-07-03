@@ -73,6 +73,15 @@ const FEATURES = [
       { name: "Priya (Self)", tag: "All Clear", ok: true },
       { name: "Aarav (Son)", tag: "Vaccination Pending", ok: false }
     ]
+  },
+  {
+    tag: "Prescription OCR", color: "purple",
+    title: "AI Prescription Scanner & Reminders",
+    desc: "Scan your printed or handwritten prescription slips. Our multimodal LLM extracts medication dosages, explains clinical indications, and configures automatic daily calendar alarms.",
+    link: "/login",
+    cta: "Scan Prescription",
+    bullets: ["Multimodal image extraction", "Automatic dosage parsing", "Daily calendar medication reminders"],
+    ocrPreview: true
   }
 ];
 
@@ -136,15 +145,22 @@ function FeatureMock({ f }) {
       </div>
     );
   }
-  if (f.members) {
+  if (f.ocrPreview) {
     return (
-      <div className="space-y-2 w-full text-xs">
-        {f.members.map(m => (
-          <div key={m.name} className={`flex justify-between items-center p-2.5 rounded-xl border text-[11px] ${m.ok ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}`}>
-            <span className="font-semibold">{m.name}</span>
-            <span className={m.ok ? "text-green-700 font-bold" : "text-amber-700 font-bold"}>{m.tag}</span>
+      <div className="space-y-3 w-full text-xs bg-purple-50/50 p-4 border border-purple-150 rounded-2xl">
+        <p className="text-[10px] font-bold text-purple-800 uppercase tracking-wide">AI Prescription Scanner</p>
+        <div className="flex gap-2.5 items-center border bg-white p-2 rounded-xl">
+          <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold">Rx</div>
+          <div className="text-[10px] leading-tight">
+            <p className="font-bold text-headingColor">Amoxicillin 500mg</p>
+            <p className="text-gray-500">1 capsule three times daily</p>
           </div>
-        ))}
+        </div>
+        <div className="flex gap-1.5 items-center mt-2">
+          <span className="text-[9px] font-bold text-gray-400">Set Reminders:</span>
+          <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-bold px-2 py-0.5 rounded-full">⏰ 08:00 AM</span>
+          <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-bold px-2 py-0.5 rounded-full">⏰ 08:00 PM</span>
+        </div>
       </div>
     );
   }
@@ -388,11 +404,11 @@ export default function Home() {
               { icon:<FaHospital size={18}/>,      color:"green",  title:"Ayushman Bharat Check",     desc:"Instantly verify if you qualify for the national cashless health scheme." },
               { icon:<FaClipboardList size={18}/>, color:"amber",  title:"Generic Pharmacy Audit",    desc:"Find 80%+ cheaper generic equivalents for your branded prescriptions." },
               { icon:<FaChartLine size={18}/>,     color:"purple", title:"Medical Loan & EMI",        desc:"Apply for financing at flat 10% with EMI schedules pre-filled from cost data." },
-              { icon:<FaUsers size={18}/>,         color:"rose",   title:"Government Schemes",        desc:"Access Central & State health schemes, PM-JAY hospitals, and welfare funds." },
+              { icon:<FaFileUpload size={18}/>,    color:"rose",   title:"AI Prescription Scanner",   desc:"Upload prescription photos to automatically parse dosages and configure reminders." },
             ].map(({ icon, color, title, desc }) => {
               const cls = {teal:"bg-teal-50 text-primaryColor border-teal-100",indigo:"bg-indigo-50 text-indigo-600 border-indigo-100",green:"bg-green-50 text-green-600 border-green-100",amber:"bg-amber-50 text-amber-600 border-amber-100",purple:"bg-purple-50 text-purple-600 border-purple-100",rose:"bg-rose-50 text-rose-600 border-rose-100"}[color];
               return (
-                <div key={title} onClick={() => navigate("/affordability")} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group space-y-4">
+                <div key={title} onClick={() => navigate(title === "AI Prescription Scanner" ? "/login" : "/affordability")} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer group space-y-4">
                   <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${cls}`}>{icon}</div>
                   <h3 className="font-extrabold text-headingColor text-sm group-hover:text-primaryColor transition-colors">{title}</h3>
                   <p className="text-xs text-textColor leading-6">{desc}</p>

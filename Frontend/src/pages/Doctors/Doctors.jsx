@@ -107,6 +107,7 @@ const Doctors = () => {
             >
               <option value="">Department</option>
               <option value="General Medicine">General Medicine</option>
+              <option value="General Surgery">General Surgery</option>
               <option value="Cardiology">Cardiology</option>
               <option value="Neurology">Neurology</option>
               <option value="Pediatrics">Pediatrics</option>

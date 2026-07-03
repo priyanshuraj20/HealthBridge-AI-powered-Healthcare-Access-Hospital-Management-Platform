@@ -13,7 +13,7 @@ import {
 export const getCheckOutSession = async (req, res) => {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-  const { appointmentDate, timeSlot, symptoms } = req.body;
+  const { appointmentDate, timeSlot, symptoms, consultationType } = req.body;
 
   if (!appointmentDate || !timeSlot) {
     return res.status(400).json({
@@ -57,6 +57,8 @@ export const getCheckOutSession = async (req, res) => {
       symptoms: symptoms || "",
       status: "pending",
       isPaid: false,
+      consultationType: consultationType || "physical",
+      meetingRoom: consultationType === "video-instant" ? `healthbridge-room-${Math.floor(100000 + Math.random() * 900000)}` : "",
     });
     await booking.save();
 

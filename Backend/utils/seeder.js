@@ -3,236 +3,239 @@ import Doctor from "../models/DoctorSchema.js";
 import User from "../models/UserSchema.js";
 import bcrypt from "bcryptjs";
 
-const mockHospitals = [
-  {
-    name: "Medicare General Hospital",
-    location: "Downtown Medical District",
-    distance: 2.4,
-    rating: 4.8,
-    waitingTime: 15,
-    specialties: ["Cardiology", "Neurology", "General Surgery", "Pediatrics"],
-    supportedInsurances: ["Star Health", "HDFC Ergo", "Max Bupa", "PM-JAY", "State Chief Minister Health Scheme"],
-    beds: {
-      icu: { total: 15, available: 4 },
-      general: { total: 80, available: 22 },
-      private: { total: 25, available: 6 },
-      emergency: { total: 10, available: 2 },
-    },
-    treatmentCosts: [
-      { treatmentName: "Angioplasty", cost: 150000 },
-      { treatmentName: "Hernia Surgery", cost: 65000 },
-      { treatmentName: "Cataract Operation", cost: 25000 },
-      { treatmentName: "Appendix Surgery", cost: 75000 },
-      { treatmentName: "Neurological Consult", cost: 1500 },
-      { treatmentName: "General Checkup", cost: 500 },
-    ],
-  },
-  {
-    name: "Care & Cure Clinic",
-    location: "Suburban Health Hub",
-    distance: 6.8,
-    rating: 4.2,
-    waitingTime: 40,
-    specialties: ["Pediatrics", "Ophthalmology", "Dermatology", "General Surgery"],
-    supportedInsurances: ["Star Health", "Max Bupa", "State Chief Minister Health Scheme"],
-    beds: {
-      icu: { total: 5, available: 1 },
-      general: { total: 40, available: 15 },
-      private: { total: 10, available: 3 },
-      emergency: { total: 5, available: 1 },
-    },
-    treatmentCosts: [
-      { treatmentName: "Hernia Surgery", cost: 55000 },
-      { treatmentName: "Cataract Operation", cost: 20000 },
-      { treatmentName: "Appendix Surgery", cost: 50000 },
-      { treatmentName: "Dermatological Triage", cost: 800 },
-      { treatmentName: "General Checkup", cost: 400 },
-    ],
-  },
-  {
-    name: "Apollo Metro Care",
-    location: "City Center Boulevard",
-    distance: 4.5,
-    rating: 4.6,
-    waitingTime: 25,
-    specialties: ["Cardiology", "Neurology", "Orthopedics", "Oncology", "General Surgery"],
-    supportedInsurances: ["Star Health", "HDFC Ergo", "PM-JAY"],
-    beds: {
-      icu: { total: 30, available: 8 },
-      general: { total: 150, available: 55 },
-      private: { total: 50, available: 18 },
-      emergency: { total: 20, available: 5 },
-    },
-    treatmentCosts: [
-      { treatmentName: "Angioplasty", cost: 180000 },
-      { treatmentName: "Hernia Surgery", cost: 80000 },
-      { treatmentName: "Cataract Operation", cost: 30000 },
-      { treatmentName: "Appendix Surgery", cost: 95000 },
-      { treatmentName: "Knee Replacement", cost: 220000 },
-      { treatmentName: "General Checkup", cost: 600 },
-    ],
-  },
-  {
-    name: "Civil General Hospital",
-    location: "District Cantonment",
-    distance: 8.5,
-    rating: 3.9,
-    waitingTime: 120,
-    specialties: ["General Surgery", "Pediatrics", "Ophthalmology"],
-    supportedInsurances: ["PM-JAY", "State Chief Minister Health Scheme"],
-    beds: {
-      icu: { total: 8, available: 1 },
-      general: { total: 200, available: 85 },
-      private: { total: 0, available: 0 },
-      emergency: { total: 15, available: 3 },
-    },
-    treatmentCosts: [
-      { treatmentName: "Appendix Surgery", cost: 10000 },
-      { treatmentName: "Cataract Operation", cost: 5000 },
-      { treatmentName: "Hernia Surgery", cost: 12000 },
-      { treatmentName: "General Checkup", cost: 50 },
-    ],
-  },
+// Helper hospital names
+const indianHospitals = [
+  "Fortis Hospital", "Max Super Speciality", "Apollo Hospital", "Manipal Hospital", "Medanta The Medicity",
+  "Narayana Health", "BLK-Max Super Speciality", "Sir Ganga Ram Hospital", "Kokilaben Dhirubhai Ambani Hospital",
+  "Lilavati Hospital", "Gleneagles Global Hospital", "Tata Memorial Hospital", "KIMS Hospital", "Yashoda Hospital",
+  "Care Hospital", "Aster DM Healthcare", "Ruby Hall Clinic", "Sahyadri Hospital", "Columbia Asia Hospital",
+  "Amrita Hospital", "Artemis Hospital", "Wockhardt Hospital", "Shalby Hospital", "MIOT International",
+  "Ganga Hospital", "PSG Hospitals", "Christian Medical College", "St. John's Medical College", "KEM Hospital",
+  "Sion Hospital", "Nair Hospital", "J J Hospital", "Ram Manohar Lohia Hospital", "Safdarjung Hospital",
+  "Lok Nayak Hospital", "GTB Hospital", "Deen Dayal Upadhyay Hospital", "Sanjay Gandhi Postgraduate Institute",
+  "King George's Medical University", "Command Hospital"
 ];
 
-const mockDoctors = [
-  {
-    name: "Dr. Aarav Mehta",
-    email: "aarav.mehta@healthbridge.com",
-    password: "seededpassword123", // Will be hashed below
-    role: "doctor",
-    specialization: "Cardiologist",
-    department: "Cardiology",
-    languages: ["English", "Hindi", "Gujarati"],
-    ticketPrice: 800,
-    isApproved: "approved",
-    averageRating: 4.9,
-    totalRating: 28,
-    bio: "Senior Interventional Cardiologist with 15+ years experience.",
-    about: "Dedicated to providing advanced cardiovascular care, including angioplasty, pacemaker installations, and heart failure management.",
-    photo: "https://res.cloudinary.com/dnb4jcioy/image/upload/v1782923791/ufn6oplhjmx1hzmydfru.jpg",
-    timeSlots: [
-      { day: "monday", startingTime: "09:00", endingTime: "12:00" },
-      { day: "wednesday", startingTime: "14:00", endingTime: "17:00" }
-    ],
-    experiences: [
-      { hospital: "AIIMS New Delhi", position: "Resident Cardiologist" },
-      { hospital: "Metro Heart Institute", position: "Senior Consultant" }
-    ],
-    qualifications: [
-      { degree: "MBBS", university: "Maulana Azad Medical College" },
-      { degree: "DM - Cardiology", university: "AIIMS New Delhi" }
-    ]
-  },
-  {
-    name: "Dr. Sunita Sharma",
-    email: "sunita.sharma@healthbridge.com",
-    password: "seededpassword123",
-    role: "doctor",
-    specialization: "Neurologist",
-    department: "Neurology",
-    languages: ["English", "Hindi", "Punjabi"],
-    ticketPrice: 900,
-    isApproved: "approved",
-    averageRating: 4.7,
-    totalRating: 19,
-    bio: "Consultant Neurologist specializing in stroke and migraine management.",
-    about: "Focused on treating neurological issues such as epilepsy, peripheral neuropathy, and cognitive disorders with clinical excellence.",
-    photo: "https://res.cloudinary.com/dnb4jcioy/image/upload/v1782923819/yigjtzlmg0nyaxjr3wv9.jpg",
-    timeSlots: [
-      { day: "tuesday", startingTime: "10:00", endingTime: "13:00" },
-      { day: "thursday", startingTime: "15:00", endingTime: "18:00" }
-    ],
-    experiences: [
-      { hospital: "Fortis Escorts", position: "Neurology Lead" }
-    ],
-    qualifications: [
-      { degree: "MBBS", university: "Lady Hardinge Medical College" },
-      { degree: "MD - Medicine", university: "PGIMER Chandigarh" }
-    ]
-  },
-  {
-    name: "Dr. Amit Verma",
-    email: "amit.verma@healthbridge.com",
-    password: "seededpassword123",
-    role: "doctor",
-    specialization: "Pediatrician",
-    department: "Pediatrics",
-    languages: ["English", "Hindi"],
-    ticketPrice: 600,
-    isApproved: "approved",
-    averageRating: 4.8,
-    totalRating: 32,
-    bio: "Child specialist focusing on pediatric immunizations and development.",
-    about: "Providing gentle and expert medical care for infants, children, and adolescents, ensuring healthy growth and prompt disease treatments.",
-    photo: "https://res.cloudinary.com/dnb4jcioy/image/upload/v1782923793/clo18nr6sx2dvftzqxs6.jpg",
-    timeSlots: [
-      { day: "monday", startingTime: "14:00", endingTime: "17:00" },
-      { day: "friday", startingTime: "09:00", endingTime: "12:00" }
-    ],
-    experiences: [
-      { hospital: "Max Super Specialty", position: "Consultant Pediatrician" }
-    ],
-    qualifications: [
-      { degree: "MBBS", university: "King George's Medical University" },
-      { degree: "DCH - Pediatrics", university: "KGMU Lucknow" }
-    ]
-  },
-  {
-    name: "Dr. Pooja Nair",
-    email: "pooja.nair@healthbridge.com",
-    password: "seededpassword123",
-    role: "doctor",
-    specialization: "Dermatologist",
-    department: "Dermatology",
-    languages: ["English", "Malayalam", "Tamil"],
-    ticketPrice: 700,
-    isApproved: "approved",
-    averageRating: 4.6,
-    totalRating: 15,
-    bio: "Dermatologist specializing in clinical skin allergies and therapies.",
-    about: "Expert treatment in psoriasis, eczema, acne, hair fall issues, and modern aesthetic skin procedures.",
-    photo: "https://res.cloudinary.com/dnb4jcioy/image/upload/v1782923794/dczlo6frxnydmqzyc6hu.jpg",
-    timeSlots: [
-      { day: "tuesday", startingTime: "14:00", endingTime: "17:00" },
-      { day: "saturday", startingTime: "10:00", endingTime: "13:00" }
-    ],
-    experiences: [
-      { hospital: "Amrita Institute of Medical Sciences", position: "Assistant Professor" }
-    ],
-    qualifications: [
-      { degree: "MBBS", university: "Govt Medical College Trivandrum" },
-      { degree: "MD - Dermatology", university: "JIPMER Puducherry" }
-    ]
-  }
+const internationalHospitals = [
+  "Mayo Clinic", "Cleveland Clinic", "Massachusetts General Hospital", "Johns Hopkins Hospital",
+  "Mount Sinai Hospital", "Guy's and St Thomas' Hospital", "Royal Free Hospital", "King's College Hospital",
+  "Cleveland Clinic Abu Dhabi", "Mediclinic Welcare Hospital", "American Hospital Dubai",
+  "Mount Elizabeth Hospital", "Raffles Hospital", "Singapore General Hospital", "Toronto General Hospital"
+];
+
+const specialtiesList = [
+  "Cardiology", "Neurology", "General Surgery", "Pediatrics", "Dermatology", "Orthopedics", "Ophthalmology", "General Medicine"
+];
+
+const doctorNames = [
+  "Dr. Aarav Mehta", "Dr. Sunita Sharma", "Dr. Amit Verma", "Dr. Pooja Nair",
+  "Dr. Vikram Malhotra", "Dr. Sanjay Sen", "Dr. Rajesh Iyer", "Dr. Priya Patel",
+  "Dr. John Smith", "Dr. Emily Taylor", "Dr. Sarah Jenkins", "Dr. Ahmed Al-Mansoori",
+  "Dr. Michael Chang", "Dr. Grace Wong", "Dr. David Miller", "Dr. Lisa Anderson",
+  "Dr. Rohan Deshmukh", "Dr. Kavita Joshi", "Dr. Sandeep Kapoor", "Dr. Ananya Roy",
+  "Dr. Arjun Reddy", "Dr. Deepa Nair", "Dr. Vinay Kumar", "Dr. Swati Sharma",
+  "Dr. Neha Gupta", "Dr. Rahul Saxena", "Dr. Sneha Patil", "Dr. Manoj Mishra",
+  "Dr. Divya Iyer", "Dr. Sameer Khan", "Dr. Ritu Choudhary", "Dr. Vivek Singh",
+  "Dr. Preeti Verma", "Dr. Alok Pandey", "Dr. Shruti Joshi", "Dr. Kunal Shah",
+  "Dr. Meera Nair", "Dr. Ashish Gupta", "Dr. Kiran Rao", "Dr. Tarun Sen",
+  "Dr. James Wilson", "Dr. Sophie Martin", "Dr. Fatma Al-Sayed", "Dr. Kenji Tanaka",
+  "Dr. Robert Brown", "Dr. Mary Clark", "Dr. William Johnson", "Dr. Patricia Davis",
+  "Dr. Richard Martinez", "Dr. Linda Jones", "Dr. Joseph Garcia", "Dr. Elizabeth Rodriguez",
+  "Dr. Charles Thomas", "Dr. Barbara White", "Dr. Christopher Lee", "Dr. Susan Harris",
+  "Dr. Daniel Clark", "Dr. Jessica Lewis"
 ];
 
 export const seedDatabase = async () => {
   try {
-    // 1. Seed Hospitals
+    console.log("Starting database seeding process...");
+
+    // 1. Generate Hospitals
+    const generatedHospitals = [];
+
+    // Seed 40 Indian Hospitals
+    indianHospitals.forEach((name, index) => {
+      const isGovernment = index >= 25; // 15 government/civil centers
+      const city = ["Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Hyderabad", "Pune", "Ahmedabad"][index % 8];
+      const distance = parseFloat((1.0 + Math.random() * 15.0).toFixed(1));
+      const rating = parseFloat((3.5 + Math.random() * 1.5).toFixed(1));
+      const waitingTime = isGovernment ? Math.floor(60 + Math.random() * 120) : Math.floor(10 + Math.random() * 40);
+      
+      const specialties = [];
+      const numSpecialties = 3 + (index % 4); // 3 to 6 specialties
+      for (let i = 0; i < numSpecialties; i++) {
+        const spec = specialtiesList[(index + i) % specialtiesList.length];
+        if (!specialties.includes(spec)) specialties.push(spec);
+      }
+      
+      const supportedInsurances = [];
+      if (isGovernment) {
+        supportedInsurances.push("PM-JAY", "State Chief Minister Health Scheme");
+      } else {
+        supportedInsurances.push("Star Health", "HDFC Ergo", "Max Bupa");
+        if (index % 3 === 0) supportedInsurances.push("PM-JAY");
+        if (index % 4 === 0) supportedInsurances.push("State Chief Minister Health Scheme");
+      }
+
+      const treatmentCosts = [];
+      specialties.forEach(spec => {
+        if (spec === "Cardiology") {
+          treatmentCosts.push({ treatmentName: "Angioplasty", cost: isGovernment ? 80000 : Math.floor(130000 + Math.random() * 60000) });
+          treatmentCosts.push({ treatmentName: "Cardiology Consult", cost: isGovernment ? 100 : Math.floor(1000 + Math.random() * 1000) });
+        } else if (spec === "Neurology") {
+          treatmentCosts.push({ treatmentName: "Neurological Consult", cost: isGovernment ? 150 : Math.floor(1200 + Math.random() * 1000) });
+        } else if (spec === "General Surgery") {
+          treatmentCosts.push({ treatmentName: "Appendix Surgery", cost: isGovernment ? 10000 : Math.floor(60000 + Math.random() * 30000) });
+          treatmentCosts.push({ treatmentName: "Hernia Surgery", cost: isGovernment ? 12000 : Math.floor(45000 + Math.random() * 25000) });
+        } else if (spec === "Pediatrics") {
+          treatmentCosts.push({ treatmentName: "General Checkup", cost: isGovernment ? 50 : Math.floor(500 + Math.random() * 500) });
+        } else if (spec === "Dermatology") {
+          treatmentCosts.push({ treatmentName: "Dermatological Triage", cost: isGovernment ? 80 : Math.floor(800 + Math.random() * 800) });
+        } else if (spec === "Orthopedics") {
+          treatmentCosts.push({ treatmentName: "Knee Replacement", cost: isGovernment ? 100000 : Math.floor(180000 + Math.random() * 70000) });
+        } else if (spec === "Ophthalmology") {
+          treatmentCosts.push({ treatmentName: "Cataract Operation", cost: isGovernment ? 6000 : Math.floor(22000 + Math.random() * 15000) });
+        } else if (spec === "General Medicine") {
+          treatmentCosts.push({ treatmentName: "General Checkup", cost: isGovernment ? 20 : Math.floor(300 + Math.random() * 400) });
+        }
+      });
+
+      generatedHospitals.push({
+        name: `${name} (${city})`,
+        location: `${city} Medical Zone`,
+        city,
+        distance,
+        rating,
+        waitingTime,
+        specialties,
+        supportedInsurances,
+        beds: {
+          icu: { total: 20 + (index % 10), available: Math.floor(Math.random() * 10) },
+          general: { total: 100 + (index % 50), available: Math.floor(Math.random() * 40) },
+          private: { total: 15 + (index % 15), available: Math.floor(Math.random() * 8) },
+          emergency: { total: 10 + (index % 5), available: Math.floor(Math.random() * 5) }
+        },
+        treatmentCosts
+      });
+    });
+
+    // Seed 15 International Hospitals
+    internationalHospitals.forEach((name, index) => {
+      const country = ["USA", "UK", "UAE", "Canada", "Singapore", "Australia"][index % 6];
+      const city = ["New York", "London", "Dubai", "Toronto", "Singapore", "Sydney"][index % 6];
+      const distance = parseFloat((500.0 + Math.random() * 8000.0).toFixed(1));
+      const rating = parseFloat((4.2 + Math.random() * 0.8).toFixed(1));
+      const waitingTime = Math.floor(10 + Math.random() * 30);
+      
+      const specialties = ["General Medicine", "Cardiology", "Neurology", "General Surgery", "Pediatrics", "Dermatology", "Orthopedics", "Ophthalmology"];
+      const supportedInsurances = ["Cigna", "Aetna", "Blue Cross Blue Shield", "Bupa International", "Allianz Care"];
+
+      const treatmentCosts = [
+        { treatmentName: "Angioplasty", cost: Math.floor(500000 + Math.random() * 200000) },
+        { treatmentName: "Appendix Surgery", cost: Math.floor(250000 + Math.random() * 100000) },
+        { treatmentName: "Hernia Surgery", cost: Math.floor(200000 + Math.random() * 80000) },
+        { treatmentName: "General Checkup", cost: Math.floor(2000 + Math.random() * 3000) },
+        { treatmentName: "Cardiology Consult", cost: Math.floor(5000 + Math.random() * 5000) },
+        { treatmentName: "Neurological Consult", cost: Math.floor(6000 + Math.random() * 5000) },
+        { treatmentName: "Cataract Operation", cost: Math.floor(80000 + Math.random() * 50000) }
+      ];
+
+      generatedHospitals.push({
+        name: `${name} (${city}, ${country})`,
+        location: `${city} Health Center`,
+        city,
+        distance,
+        rating,
+        waitingTime,
+        specialties,
+        supportedInsurances,
+        beds: {
+          icu: { total: 30, available: 12 },
+          general: { total: 150, available: 68 },
+          private: { total: 60, available: 25 },
+          emergency: { total: 20, available: 9 }
+        },
+        treatmentCosts
+      });
+    });
+
     await Hospital.deleteMany({});
-    const insertedHospitals = await Hospital.insertMany(mockHospitals);
-    console.log("Mock Hospital details seeded successfully.");
+    const insertedHospitals = await Hospital.insertMany(generatedHospitals);
+    console.log(`Successfully seeded ${insertedHospitals.length} hospitals (40 Indian, 15 International).`);
 
-    const defaultHospitalId = insertedHospitals[0]._id;
+    // 2. Generate Doctors linked to seeded hospitals
+    const mockDoctorsList = [];
 
-    // 2. Seed/Update Doctors (Upsert seeded records)
-    await Doctor.deleteMany({ email: { $in: mockDoctors.map((d) => d.email) } });
+    doctorNames.forEach((name, index) => {
+      const isFemale = index % 2 !== 0;
+      const isInternational = index >= 40;
+      
+      const specialization = specialtiesList[index % specialtiesList.length];
+      const department = specialization;
+      
+      let specLabel = specialization;
+      if (specialization === "General Surgery") {
+        specLabel = "General Surgeon (Appendix, Hernia)";
+      } else if (specialization === "General Medicine") {
+        specLabel = "General Physician";
+      } else {
+        specLabel = `${specialization} Specialist`;
+      }
+
+      const ticketPrice = isInternational ? Math.floor(3000 + Math.random() * 3000) : Math.floor(300 + Math.random() * 700);
+      
+      // Evenly distribute doctors across all seeded hospitals
+      const hospitalIndex = index % insertedHospitals.length;
+      const hospitalId = insertedHospitals[hospitalIndex]._id;
+
+      mockDoctorsList.push({
+        hospital: hospitalId,
+        name,
+        email: `${name.toLowerCase().replace(/[^a-z]/g, "")}@healthbridge.com`,
+        password: "seededpassword123", // Will be hashed below
+        role: "doctor",
+        specialization: specLabel,
+        department,
+        gender: isFemale ? "female" : "male",
+        languages: isInternational ? ["English", "Spanish", "French"][index % 3] : ["English", "Hindi", "Regional"][index % 3],
+        ticketPrice,
+        isApproved: "approved",
+        averageRating: parseFloat((4.0 + Math.random() * 1.0).toFixed(1)),
+        totalRating: Math.floor(10 + Math.random() * 90),
+        bio: `Dedicated medical professional specializing in ${department} with focus on clinical excellence and patient care.`,
+        about: `Highly qualified medical practitioner with a proven track record of successful treatments in the field of ${department}.`,
+        photo: isFemale 
+          ? "https://res.cloudinary.com/dnb4jcioy/image/upload/v1782923819/yigjtzlmg0nyaxjr3wv9.jpg"
+          : "https://res.cloudinary.com/dnb4jcioy/image/upload/v1782923791/ufn6oplhjmx1hzmydfru.jpg",
+        timeSlots: [
+          { day: "monday", startingTime: "09:00", endingTime: "12:00" },
+          { day: "wednesday", startingTime: "14:00", endingTime: "17:00" },
+          { day: "friday", startingTime: "10:00", endingTime: "13:00" }
+        ],
+        experiences: [
+          { hospital: "National Health Centre", position: "Consultant Specialist" }
+        ],
+        qualifications: [
+          { degree: "MBBS", university: "State Medical College" },
+          { degree: "MD / MS", university: "PG Institute of Medical Sciences" }
+        ]
+      });
+    });
+
+    await Doctor.deleteMany({ email: { $in: mockDoctorsList.map((d) => d.email) } });
 
     const hashedDoctors = await Promise.all(
-      mockDoctors.map(async (doc) => {
+      mockDoctorsList.map(async (doc) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(doc.password, salt);
         return { 
           ...doc, 
-          password: hashedPassword,
-          hospital: defaultHospitalId
+          password: hashedPassword
         };
       })
     );
 
     await Doctor.insertMany(hashedDoctors);
-    console.log("Mock Indian Doctors seeded/updated successfully.");
+    console.log(`Successfully seeded ${hashedDoctors.length} doctors (male/female, inside/outside India).`);
 
     // 3. Seed Patients & Branch Staff
     const mockUsers = [
@@ -258,7 +261,7 @@ export const seedDatabase = async () => {
         password: "seededpassword123",
         role: "receptionist",
         gender: "female",
-        hospital: defaultHospitalId
+        hospital: insertedHospitals[0]._id
       },
       {
         name: "Vikram LabTech",
@@ -266,7 +269,7 @@ export const seedDatabase = async () => {
         password: "seededpassword123",
         role: "lab_tech",
         gender: "male",
-        hospital: defaultHospitalId
+        hospital: insertedHospitals[0]._id
       }
     ];
 

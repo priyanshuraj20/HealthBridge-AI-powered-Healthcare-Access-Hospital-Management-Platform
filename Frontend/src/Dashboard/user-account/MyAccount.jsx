@@ -7,6 +7,7 @@ import ProfileSettings from "./ProfileSettings.jsx";
 import MedicalReports from "./MedicalReports.jsx";
 import Prescriptions from "./Prescriptions.jsx";
 import SymptomChecker from "./SymptomChecker.jsx";
+import PrescriptionOCR from "./PrescriptionOCR.jsx";
 import useGetProfile from "../../hooks/useFetchData.js";
 import { BASE_URL, token } from "../../config.js";
 import Loading from "../../components/Loader/Loading.jsx";
@@ -152,6 +153,16 @@ const UserAccount = () => {
                 >
                   Symptom Checker
                 </button>
+                <button
+                  onClick={() => setTab("ocr")}
+                  className={`p-2 px-4 text-xs font-semibold rounded transition-all ${
+                    tab === "ocr"
+                      ? "bg-primaryColor text-white"
+                      : "text-headingColor bg-gray-50 hover:bg-gray-100"
+                  }`}
+                >
+                  Prescription OCR
+                </button>
               </div>
 
               {/* Tab Outputs */}
@@ -160,6 +171,7 @@ const UserAccount = () => {
               {tab === "reports" && <MedicalReports />}
               {tab === "prescriptions" && <Prescriptions />}
               {tab === "symptoms" && <SymptomChecker />}
+              {tab === "ocr" && <PrescriptionOCR />}
             </div>
           </div>
         )}

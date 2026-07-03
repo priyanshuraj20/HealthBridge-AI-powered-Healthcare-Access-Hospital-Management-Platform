@@ -7,6 +7,7 @@ import {
   onboardDoctor,
   onboardStaff,
   updateBeds,
+  updateTreatments,
   getHospitalQueue,
   checkInPatient
 } from "../Controllers/hospitalController.js";
@@ -26,6 +27,7 @@ router.post("/:id/staff", authenticate, restrict(["org_admin"]), onboardStaff);
 
 // Operational HMS (Staff/Reception/Doctors)
 router.put("/:id/beds", authenticate, restrict(["org_admin", "receptionist"]), updateBeds);
+router.put("/:id/treatments", authenticate, restrict(["org_admin"]), updateTreatments);
 router.get("/:id/queue", authenticate, restrict(["org_admin", "receptionist", "doctor"]), getHospitalQueue);
 router.put("/bookings/:bookingId/checkin", authenticate, restrict(["receptionist"]), checkInPatient);
 

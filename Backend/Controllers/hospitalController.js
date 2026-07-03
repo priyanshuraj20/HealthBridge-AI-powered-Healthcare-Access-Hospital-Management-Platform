@@ -26,7 +26,7 @@ export const getBedsDashboard = async (req, res) => {
 
 // Smart Recommendations for Hospitals & Doctors
 export const getSmartRecommendations = async (req, res) => {
-  const { budget, insurance, specialty, maxDistance, maxWaitTime } = req.query;
+  const { query, budget, insurance, specialty, maxDistance, maxWaitTime } = req.query;
 
   try {
     let hospitalFilter = {};
@@ -42,6 +42,15 @@ export const getSmartRecommendations = async (req, res) => {
     }
     if (maxWaitTime) {
       hospitalFilter.waitingTime = { $lte: parseInt(maxWaitTime) };
+    }
+    if (query && query.trim() !== "") {
+      const reg = new RegExp(query.trim(), "i");
+      hospitalFilter.$or = [
+        { name: reg },
+        { location: reg },
+        { specialties: { $in: [reg] } },
+        { "treatmentCosts.treatmentName": reg }
+      ];
     }
 
     let hospitals = await Hospital.find(hospitalFilter);
@@ -66,6 +75,15 @@ export const getSmartRecommendations = async (req, res) => {
           { specialization: new RegExp(specialty, "i") },
           { department: new RegExp(specialty, "i") },
         ],
+      }).select("-password");
+    } else if (query && query.trim() !== "") {
+      const reg = new RegExp(query.trim(), "i");
+      doctors = await Doctor.find({
+        $or: [
+          { name: reg },
+          { specialization: reg },
+          { department: reg }
+        ]
       }).select("-password");
     } else {
       doctors = await Doctor.find({})
@@ -208,8 +226,11 @@ export const updateBeds = async (req, res) => {
 export const getHospitalQueue = async (req, res) => {
   const branchId = req.params.id;
   try {
-    const bookings = await Booking.find({ hospital: branchId })
-      .populate("patient", "name email phone gender")
+    const doctors = await Doctor.find({ hospital: branchId });
+    const doctorIds = doctors.map((d) => d._id);
+
+    const bookings = await Booking.find({ doctor: { $in: doctorIds } })
+      .populate("user", "name email phone gender")
       .populate("doctor", "name specialization")
       .sort({ appointmentDate: 1 });
 
@@ -234,6 +255,28 @@ export const checkInPatient = async (req, res) => {
     await booking.save();
 
     res.status(200).json({ success: true, message: `Patient check-in status updated to ${booking.status}`, data: booking });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Live treatment costs update endpoint
+export const updateTreatments = async (req, res) => {
+  const { treatmentCosts } = req.body;
+  const branchId = req.params.id;
+
+  try {
+    const branch = await Hospital.findById(branchId);
+    if (!branch) {
+      return res.status(404).json({ success: false, message: "Branch not found" });
+    }
+
+    if (treatmentCosts !== undefined) {
+      branch.treatmentCosts = treatmentCosts;
+    }
+
+    await branch.save();
+    res.status(200).json({ success: true, message: "Treatment costs updated successfully", data: branch });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
