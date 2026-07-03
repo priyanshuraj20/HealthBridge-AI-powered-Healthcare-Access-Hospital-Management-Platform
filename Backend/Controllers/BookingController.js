@@ -1,14 +1,56 @@
 import User from "../models/UserSchema.js";
 import Doctor from "../models/DoctorSchema.js";
 import Booking from "../models/BookingSchema.js";
+import Meeting from "../models/MeetingSchema.js";
 import MedicalRecord from "../models/MedicalRecordSchema.js";
 import Stripe from "stripe";
+import jwt from "jsonwebtoken";
 import { getOpenRouterResponse } from "./aiController.js";
 import {
   sendBookingNotification,
   sendConfirmationNotification,
   sendCancellationNotification,
 } from "../utils/notificationService.js";
+
+// ─── VideoSDK helpers ───────────────────────────────────────────────────────
+const VIDEOSDK_API_KEY = process.env.VIDEOSDK_API_KEY;
+const VIDEOSDK_SECRET  = process.env.VIDEOSDK_SECRET || "";
+
+/** Generate a VideoSDK participant token using JWT (no secret needed for API-key auth) */
+const generateVideoSDKToken = (participantId, roomId) => {
+  // VideoSDK v2 uses API-key based auth — token payload
+  const payload = {
+    apikey: VIDEOSDK_API_KEY,
+    permissions: ["allow_join", "allow_mod"],
+    version: 2,
+    roomId,
+    participantId,
+  };
+  // If a secret is configured, sign it; otherwise use the API key as a bearer token
+  if (VIDEOSDK_SECRET) {
+    return jwt.sign(payload, VIDEOSDK_SECRET, { expiresIn: "4h", algorithm: "HS256" });
+  }
+  // Fallback: use API key directly (VideoSDK supports this for dev)
+  return VIDEOSDK_API_KEY;
+};
+
+/** Create a VideoSDK room via REST API */
+const createVideoSDKRoom = async () => {
+  const token = generateVideoSDKToken("server", "");
+  const res = await fetch("https://api.videosdk.live/v2/rooms", {
+    method: "POST",
+    headers: {
+      Authorization: token,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`VideoSDK room creation failed: ${err}`);
+  }
+  const data = await res.json();
+  return data.roomId;
+};
 
 export const getCheckOutSession = async (req, res) => {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -525,6 +567,144 @@ export const getSingleBooking = async (req, res) => {
       return res.status(404).json({ success: false, message: "Booking not found." });
     }
     res.status(200).json({ success: true, data: booking });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── VideoSDK Meeting Controllers ────────────────────────────────────────────
+
+// 7. Create VideoSDK Meeting for an appointment
+export const createMeeting = async (req, res) => {
+  const { appointmentId } = req.body;
+  if (!appointmentId) {
+    return res.status(400).json({ success: false, message: "appointmentId is required." });
+  }
+
+  try {
+    const booking = await Booking.findById(appointmentId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Appointment not found." });
+    }
+
+    // Check if meeting already exists
+    let meeting = await Meeting.findOne({ appointmentId });
+    if (meeting) {
+      // Return existing meeting with fresh tokens
+      const patientToken  = generateVideoSDKToken(`patient-${booking.user._id || booking.user}`, meeting.roomId);
+      const doctorToken   = generateVideoSDKToken(`doctor-${booking.doctor._id || booking.doctor}`, meeting.roomId);
+      meeting.patientToken  = patientToken;
+      meeting.hospitalToken = doctorToken;
+      await meeting.save();
+      return res.status(200).json({
+        success: true,
+        message: "Meeting already exists.",
+        data: meeting,
+      });
+    }
+
+    // Create a new VideoSDK room
+    let roomId;
+    try {
+      roomId = await createVideoSDKRoom();
+    } catch (e) {
+      // Fallback: use the meetingRoom field from booking if VideoSDK API fails
+      roomId = booking.meetingRoom || `hb-room-${appointmentId}`;
+      console.error("VideoSDK room creation error (using fallback):", e.message);
+    }
+
+    const patientId      = `patient-${booking.user._id || booking.user}`;
+    const doctorId       = `doctor-${booking.doctor._id || booking.doctor}`;
+    const patientToken   = generateVideoSDKToken(patientId, roomId);
+    const doctorToken    = generateVideoSDKToken(doctorId, roomId);
+
+    meeting = new Meeting({
+      appointmentId,
+      roomId,
+      patientToken,
+      hospitalToken: doctorToken,
+      status: "created",
+    });
+    await meeting.save();
+
+    // Also update booking meetingRoom field
+    booking.meetingRoom = roomId;
+    await booking.save();
+
+    res.status(201).json({
+      success: true,
+      message: "VideoSDK meeting created successfully.",
+      data: meeting,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// 8. Get Meeting details + fresh tokens for an appointment
+export const getMeetingByAppointment = async (req, res) => {
+  const { appointmentId } = req.params;
+  try {
+    let meeting = await Meeting.findOne({ appointmentId });
+
+    if (!meeting) {
+      // Auto-create if it doesn't exist
+      const booking = await Booking.findById(appointmentId);
+      if (!booking) {
+        return res.status(404).json({ success: false, message: "Appointment not found." });
+      }
+
+      let roomId;
+      try {
+        roomId = await createVideoSDKRoom();
+      } catch (e) {
+        roomId = booking.meetingRoom || `hb-room-${appointmentId}`;
+        console.error("VideoSDK room creation error (using fallback):", e.message);
+      }
+
+      const patientToken  = generateVideoSDKToken(`patient-${booking.user._id || booking.user}`, roomId);
+      const doctorToken   = generateVideoSDKToken(`doctor-${booking.doctor._id || booking.doctor}`, roomId);
+
+      meeting = new Meeting({
+        appointmentId,
+        roomId,
+        patientToken,
+        hospitalToken: doctorToken,
+        status: "created",
+      });
+      await meeting.save();
+
+      booking.meetingRoom = roomId;
+      await booking.save();
+    } else {
+      // Refresh tokens
+      const booking = await Booking.findById(appointmentId);
+      if (booking) {
+        meeting.patientToken  = generateVideoSDKToken(`patient-${booking.user._id || booking.user}`, meeting.roomId);
+        meeting.hospitalToken = generateVideoSDKToken(`doctor-${booking.doctor._id || booking.doctor}`, meeting.roomId);
+        await meeting.save();
+      }
+    }
+
+    res.status(200).json({ success: true, data: meeting });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// 9. End a VideoSDK meeting and mark appointment completed
+export const endMeeting = async (req, res) => {
+  const { appointmentId } = req.body;
+  try {
+    const meeting = await Meeting.findOne({ appointmentId });
+    if (meeting) {
+      meeting.status = "ended";
+      await meeting.save();
+    }
+
+    await Booking.findByIdAndUpdate(appointmentId, { status: "completed" });
+
+    res.status(200).json({ success: true, message: "Meeting ended and appointment marked completed." });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import { authContext } from "../context/AuthContext.jsx";
 import { BsArrowRightShort, BsArrowLeft, BsArrowRight } from "react-icons/bs";
 import {
   FaStethoscope, FaFileUpload, FaVideo, FaRobot, FaBell,
@@ -30,9 +31,9 @@ const FEATURES = [
     tag: "Telemedicine", color: "blue",
     title: "Free Follow-up Video Consultations",
     desc: "After your physical visit, upload lab reports and get a FREE video consultation with the same doctor — no second hospital trip — within 10 days.",
-    link: "/login",
+    link: "__telemedicine__",
     cta: "Book Video Consultation",
-    bullets: ["Free follow-up within 10 days", "Encrypted Jitsi video calls", "AI-generated consultation summary"],
+    bullets: ["Free follow-up within 10 days", "Encrypted VideoSDK video calls", "AI-generated consultation summary"],
     steps: ["Physical Appointment", "Lab Tests Prescribed", "Reports Uploaded", "Free Video Call"]
   },
   {
@@ -172,9 +173,30 @@ function FeatureMock({ f }) {
 ═══════════════════════════════════════════════════════ */
 export default function Home() {
   const navigate = useNavigate();
+  const { token, role } = useContext(authContext);
   const [heroImg, setHeroImg]     = useState(0);
   const [slideIdx, setSlideIdx]   = useState(0);
   const [fadeOn, setFadeOn]       = useState(true);
+
+  // Smart navigation: if already logged in, go to dashboard; else go to login
+  const navigateToConsultation = () => {
+    if (token && role === "patient") {
+      navigate("/users/profile/me");
+    } else if (token && role === "doctor") {
+      navigate("/doctors/profile/me");
+    } else {
+      navigate("/login");
+    }
+  };
+
+  // Smart navigation for feature card links
+  const handleFeatureNavigate = (link) => {
+    if (link === "__telemedicine__") {
+      navigateToConsultation();
+    } else {
+      navigate(link);
+    }
+  };
 
   // Hero image carousel
   useEffect(() => {
@@ -459,8 +481,8 @@ export default function Home() {
           </div>
 
           <div className="text-center mt-6">
-            <button onClick={() => navigate("/login")} className="bg-primaryColor text-white font-bold text-sm px-8 py-3.5 rounded-xl shadow-md hover:bg-teal-700 transition-all inline-flex items-center gap-2">
-              <FaVideo /> Book Video Consultation <BsArrowRightShort size={18} />
+            <button onClick={navigateToConsultation} className="bg-primaryColor text-white font-bold text-sm px-8 py-3.5 rounded-xl shadow-md hover:bg-teal-700 transition-all inline-flex items-center gap-2">
+              <FaVideo /> {token ? "Go to My Consultations" : "Book Video Consultation"} <BsArrowRightShort size={18} />
             </button>
           </div>
         </div>
@@ -504,7 +526,7 @@ export default function Home() {
           <div className="grid lg:grid-cols-3 gap-5">
             {/* Active card — 2 cols */}
             <div
-              onClick={() => navigate(cur.link)}
+              onClick={() => handleFeatureNavigate(cur.link)}
               className="lg:col-span-2 bg-white border border-gray-200 rounded-3xl p-7 shadow-sm hover:shadow-md hover:border-primaryColor/40 hover:-translate-y-0.5 cursor-pointer transition-all flex flex-col justify-between"
               style={{ opacity: fadeOn ? 1 : 0, transform: fadeOn ? "translateY(0)" : "translateY(6px)", transition: "opacity 220ms ease, transform 220ms ease" }}
             >

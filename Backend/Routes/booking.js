@@ -13,6 +13,9 @@ import {
   bookInstant,
   generateAISummary,
   getSingleBooking,
+  createMeeting,
+  getMeetingByAppointment,
+  endMeeting,
 } from "../Controllers/BookingController.js";
 
 const router = express.Router();
@@ -36,5 +39,10 @@ router.post("/schedule-followup/:id", authenticate, restrict(["patient"]), sched
 router.post("/book-instant", authenticate, restrict(["patient"]), bookInstant);
 router.post("/ai-summary/:id", authenticate, restrict(["doctor"]), generateAISummary);
 router.get("/single/:id", authenticate, getSingleBooking);
+
+// VideoSDK Meeting routes
+router.post("/meetings/create", authenticate, createMeeting);
+router.get("/meetings/:appointmentId", authenticate, getMeetingByAppointment);
+router.post("/meetings/end", authenticate, restrict(["doctor"]), endMeeting);
 
 export default router;

@@ -272,14 +272,15 @@ const Appointments = ({ appointments }) => {
                           <FaCloudUploadAlt size={10}/> Reports
                         </button>
                       )}
-                      {/* Join Video Call */}
+                      {/* Start/Join Video Consultation */}
                       {(item.consultationType === "video-followup" || item.consultationType === "video-instant") &&
-                        item.meetingRoom && item.status === "confirmed" && (
+                        item.meetingRoom &&
+                        (item.status === "confirmed" || item.status === "approved") && (
                         <button
                           onClick={() => navigate(`/video-call/${item._id}`)}
-                          className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-2.5 py-1.5 rounded font-semibold flex items-center gap-1"
+                          className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-2.5 py-1.5 rounded font-semibold flex items-center gap-1 transition-all"
                         >
-                          <FaVideo size={10}/> Join Call
+                          <FaVideo size={10}/> Start Consultation
                         </button>
                       )}
                     </div>

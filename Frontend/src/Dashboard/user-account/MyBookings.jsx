@@ -353,12 +353,12 @@ const MyBookings = () => {
                 {/* Join Video Call Button */}
                 {(booking.consultationType === "video-followup" || booking.consultationType === "video-instant") &&
                   booking.meetingRoom &&
-                  booking.status === "confirmed" && (
+                  (booking.status === "confirmed" || booking.status === "approved") && (
                   <button
                     onClick={() => navigate(`/video-call/${booking._id}`)}
-                    className="text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-md font-semibold flex items-center gap-1"
+                    className="text-xs bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-xl font-semibold flex items-center gap-1.5 transition-all shadow-sm shadow-teal-600/20"
                   >
-                    <FaVideo /> Join Video Call
+                    <FaVideo /> Join Consultation
                   </button>
                 )}
 
