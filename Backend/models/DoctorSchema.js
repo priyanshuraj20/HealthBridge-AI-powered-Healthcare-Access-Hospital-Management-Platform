@@ -27,6 +27,11 @@ const DoctorSchema = new mongoose.Schema({
   about: { type: String },
   timeSlots: { type: Array, default: [] },
   gender: { type: String, enum: ["male", "female", "other"] },
+  isApproved: {
+    type: String,
+    enum: ["pending", "approved", "cancelled"],
+    default: "pending",
+  },
   reviews: [{ type: mongoose.Types.ObjectId, ref: "Review" }],
   averageRating: {
     type: Number,
