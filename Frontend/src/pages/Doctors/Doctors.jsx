@@ -1,5 +1,4 @@
 import { BASE_URL } from "../../config";
-import useFetchData from "../../hooks/useFetchData.js";
 import DoctorCard from "../../components/Doctors/DoctorCard";
 import Testimonials from "../../components/Testimonials/Testimonials";
 import ErrorComponent from "../../components/Error/Error.jsx";
@@ -16,6 +15,10 @@ const Doctors = () => {
   const [sortBy, setSortBy] = useState("");
   const [page, setPage] = useState(1);
 
+  // Suggestions & recommendations states
+  const [recommendedDoctors, setRecommendedDoctors] = useState([]);
+  const [isFocused, setIsFocused] = useState(false);
+
   useEffect(() => {
     const timeOut = setTimeout(() => {
       setDebounceQuery(query.trim());
@@ -24,29 +27,7 @@ const Doctors = () => {
     return () => clearTimeout(timeOut);
   }, [query]);
 
-  const fetchUrl = `${BASE_URL}/doctors?query=${debounceQuery}&department=${department}&gender=${gender}&sortBy=${sortBy}&page=${page}&limit=8`;
-  const { data: resData, loading, error } = useFetchData(fetchUrl);
-
-  // Extract doctors list and pagination metadata
-  const doctors = resData || [];
-  // Since useFetchData returns the top level response or result.data, let's see:
-  // Our getAllDoctors backend response sends { success: true, data: doctors, pagination: { total, page, limit, pages } }
-  // Wait, in useFetchData:
-  // result.data is loaded into state!
-  // If result.data is the array of doctors, wait, in our backend we did:
-  // res.status(200).json({ success: true, data: doctors, pagination: ... })
-  // So result.data is indeed the array of doctors! And pagination metadata is not returned by the hook since the hook returns result.data.
-  // Wait! To get pagination metadata, we should handle custom fetches or update the useFetchData hook to return the entire response wrapper, or we can just fetch pagination metadata directly.
-  // Actually, we can fetch page details easily or query them. Or we can update useFetchData to return the whole body, or simply perform standard client-side pagination on the returned dataset.
-  // Wait, if the hook returns the array of doctors, let's check how we can do pagination. If we do client-side pagination of the returned list, or let the backend return all matching and we page on client, that is also robust.
-  // But wait! In our backend `getAllDoctors` we implemented page and limit in Mongoose. If we did, then the returned array size is at most 8! So client-side pagination of the returned array wouldn't know the total count.
-  // To handle pagination cleanly without changing all other files that use `useFetchData`, we can look at the hook:
-  // setData(result.data).
-  // If we modify the backend `getAllDoctors` to send data as an object `{ doctors, total, pages }` or similar? No, because other pages in the app (like `admin/src/components/Doctors.jsx` or customer dashboard lists) expect `data` to be an array of doctors!
-  // Wait! A very elegant way is to let `useFetchData` work as is, but in `Doctors.jsx` we can use a custom local `fetch` request instead of the hook!
-  // Yes! Performing a local `fetch` request inside a `useEffect` inside `Doctors.jsx` gives us 100% control over the entire API response (including `data` array and `pagination` object) and is completely safe from breaking other files!
-  // Let's write the fetch logic directly in `Doctors.jsx` using `useEffect`! This is incredibly robust, clean, and professional.
-
+  // Main Doctors Search List States
   const [doctorsList, setDoctorsList] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [fetchLoading, setFetchLoading] = useState(false);
@@ -77,6 +58,31 @@ const Doctors = () => {
     fetchDoctors();
   }, [debounceQuery, department, gender, sortBy, page]);
 
+  // Fetch Recommended Doctors on mount
+  useEffect(() => {
+    const fetchRecommended = async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/doctors?limit=4&sortBy=rating`);
+        const json = await res.json();
+        if (res.ok) {
+          setRecommendedDoctors(json.data || []);
+        }
+      } catch (e) {
+        console.log("Error loading recommended list:", e.message);
+      }
+    };
+    fetchRecommended();
+  }, []);
+
+  const handleResetFilters = () => {
+    setQuery("");
+    setDebounceQuery("");
+    setDepartment("");
+    setGender("");
+    setSortBy("");
+    setPage(1);
+  };
+
   return (
     <>
       <section className="bg-gray-50 py-12">
@@ -87,14 +93,39 @@ const Doctors = () => {
           </p>
 
           <div className="max-w-[760px] mx-auto bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
-            {/* Search Input */}
-            <input
-              type="search"
-              className="py-2.5 px-4 bg-gray-50 border rounded-md w-full md:flex-1 focus:outline-none focus:border-primaryColor text-sm text-textColor"
-              placeholder="Search by name, specialization, or department..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+            {/* Search Input Container with Suggestion Panel */}
+            <div className="relative w-full md:flex-1 text-left">
+              <input
+                type="search"
+                className="py-2.5 px-4 bg-gray-50 border rounded-md w-full focus:outline-none focus:border-primaryColor text-sm text-textColor"
+                placeholder="Search by name, specialization, or department..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setTimeout(() => setIsFocused(false), 220)}
+              />
+
+              {isFocused && recommendedDoctors.length > 0 && (
+                <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-3 space-y-2 text-left">
+                  <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider px-1">Quick Suggestions</p>
+                  <div className="divide-y divide-gray-50 max-h-[220px] overflow-y-auto">
+                    {recommendedDoctors.map((doc) => (
+                      <div 
+                        key={doc._id} 
+                        onClick={() => { setQuery(doc.name); setDebounceQuery(doc.name); }}
+                        className="flex items-center gap-3 py-2 px-1 hover:bg-teal-50/30 rounded-lg cursor-pointer transition-all"
+                      >
+                        <img src={doc.photo} alt="" className="w-8 h-8 rounded-full object-cover" />
+                        <div>
+                          <p className="text-xs font-bold text-headingColor">{doc.name}</p>
+                          <p className="text-[10px] text-textColor">{doc.specialization} • {doc.ticketPrice} INR</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Department Filter */}
             <select
@@ -156,9 +187,35 @@ const Doctors = () => {
           {!fetchLoading && !fetchError && (
             <>
               {doctorsList.length === 0 ? (
-                <p className="text-center font-semibold text-lg text-red-500 py-10">
-                  No doctors found matching your criteria.
-                </p>
+                <div className="space-y-8 py-10">
+                  <div className="text-center max-w-[600px] mx-auto bg-red-50 border border-red-200 rounded-2xl p-6 shadow-sm">
+                    <p className="font-extrabold text-red-700 text-sm">
+                      No doctors found matching your criteria.
+                    </p>
+                    <p className="text-xs text-textColor mt-1">
+                      We couldn't find matches for your active filters. Explore some of our top-rated recommended doctors instead:
+                    </p>
+                    <button 
+                      onClick={handleResetFilters} 
+                      className="mt-3.5 text-xs text-primaryColor hover:underline font-bold"
+                    >
+                      Clear All Search Filters
+                    </button>
+                  </div>
+
+                  {recommendedDoctors.length > 0 && (
+                    <div className="space-y-6 pt-4">
+                      <h3 className="text-sm font-extrabold text-headingColor text-center uppercase tracking-widest text-primaryColor">
+                        ✨ Recommended Specialists
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        {recommendedDoctors.map((doctor) => (
+                          <DoctorCard doctor={doctor} key={doctor._id} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                   {doctorsList.map((doctor) => (
@@ -168,7 +225,7 @@ const Doctors = () => {
               )}
 
               {/* Pagination Controls */}
-              {pagination.pages > 1 && (
+              {pagination.pages > 1 && doctorsList.length > 0 && (
                 <div className="flex items-center justify-center gap-4 mt-12">
                   <button
                     disabled={page === 1}
