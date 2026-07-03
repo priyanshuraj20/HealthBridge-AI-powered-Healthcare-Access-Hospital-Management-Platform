@@ -21,6 +21,11 @@ const UserSchema = new mongoose.Schema({
     relationship: { type: String, default: "" },
   },
   appointments: [{ type: mongoose.Types.ObjectId, ref: "Booking" }],
+  ayushmanCard: {
+    cardNumber: { type: String, default: "" },
+    holderName: { type: String, default: "" },
+    status: { type: String, enum: ["Unverified", "Verified"], default: "Unverified" },
+  },
   familyMembers: [
     {
       name: { type: String, required: true },

@@ -9,6 +9,7 @@ import Prescriptions from "./Prescriptions.jsx";
 import SymptomChecker from "./SymptomChecker.jsx";
 import PrescriptionOCR from "./PrescriptionOCR.jsx";
 import PatientHomepage from "./PatientHomepage.jsx";
+import FamilyVault from "./FamilyVault.jsx";
 import useGetProfile from "../../hooks/useFetchData.js";
 import { BASE_URL, token } from "../../config.js";
 import Loading from "../../components/Loader/Loading.jsx";
@@ -174,6 +175,16 @@ const UserAccount = () => {
                 >
                   Prescription OCR
                 </button>
+                <button
+                  onClick={() => setTab("family-vault")}
+                  className={`p-2 px-4 text-xs font-semibold rounded transition-all ${
+                    tab === "family-vault"
+                      ? "bg-primaryColor text-white"
+                      : "text-headingColor bg-gray-50 hover:bg-gray-100"
+                  }`}
+                >
+                  👨‍👩‍👧 Family & Ayushman Vault
+                </button>
               </div>
 
               {/* Tab Outputs */}
@@ -184,6 +195,7 @@ const UserAccount = () => {
               {tab === "prescriptions" && <Prescriptions />}
               {tab === "symptoms" && <SymptomChecker />}
               {tab === "ocr" && <PrescriptionOCR />}
+              {tab === "family-vault" && <FamilyVault user={userData} />}
             </div>
           </div>
         )}
