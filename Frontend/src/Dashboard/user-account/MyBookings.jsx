@@ -69,7 +69,7 @@ const MyBookings = () => {
 
     setRescheduleLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/bookings/reschedule/${rescheduleData._id}`, {
+      const res = await fetch(`${BASE_URL}/bookings/reschedule/${rescheduleData.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -142,7 +142,7 @@ const MyBookings = () => {
       toast.error("Please fill in date and time slot.");
       return;
     }
-    const booking = bookings.find((b) => b._id === bookingId);
+    const booking = bookings.find((b) => b.id === bookingId);
     const doctorTimeSlots = booking?.doctor?.timeSlots || [];
     const timeSlot = doctorTimeSlots[parseInt(followupSlotIndex)];
     if (!timeSlot) {
@@ -182,9 +182,9 @@ const MyBookings = () => {
         },
         body: JSON.stringify({
           symptoms: booking.symptoms || "No symptoms reported explicitly.",
-          patientName: booking.user?.name,
-          patientAge: booking.user?.gender ? "Adult" : "N/A",
-          patientGender: booking.user?.gender,
+          patientName: booking.patient?.name,
+          patientAge: "Adult",
+          patientGender: booking.patient?.gender,
         }),
       });
 
@@ -208,7 +208,7 @@ const MyBookings = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {bookings.map((booking) => (
             <div
-              key={booking._id}
+              key={booking.id}
               className="bg-white p-5 border border-gray-100 shadow-sm rounded-lg hover:shadow-md transition-all flex flex-col justify-between"
             >
               <div>
@@ -249,7 +249,7 @@ const MyBookings = () => {
                   </p>
                   <p>
                     <span className="font-semibold text-headingColor">Price:</span>{" "}
-                    {booking.ticketPrice} INR
+                    {booking.price} INR
                   </p>
                   {booking.symptoms && (
                     <p className="text-xs text-gray-500 italic mt-2">
@@ -283,7 +283,7 @@ const MyBookings = () => {
               )}
 
               {/* Upload Report Panel */}
-              {showReportUpload === booking._id && (
+              {showReportUpload === booking.id && (
                 <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs space-y-2">
                   <input
                     type="text"
@@ -295,7 +295,7 @@ const MyBookings = () => {
                   <input
                     type="file"
                     accept="application/pdf,image/*"
-                    onChange={(e) => handleReportUpload(e, booking._id)}
+                    onChange={(e) => handleReportUpload(e, booking.id)}
                     className="w-full text-xs"
                     disabled={uploadingReport}
                   />
@@ -305,7 +305,7 @@ const MyBookings = () => {
               )}
 
               {/* Follow-up Scheduling Form */}
-              {showFollowupForm === booking._id && (
+              {showFollowupForm === booking.id && (
                 <div className="mt-2 p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs space-y-2">
                   <p className="font-bold text-teal-800">Schedule Free Follow-up Call</p>
                   <input
@@ -329,7 +329,7 @@ const MyBookings = () => {
                   </select>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleScheduleFollowup(booking._id)}
+                      onClick={() => handleScheduleFollowup(booking.id)}
                       className="bg-primaryColor text-white text-[10px] px-3 py-1.5 rounded font-bold"
                     >
                       Confirm
@@ -352,10 +352,9 @@ const MyBookings = () => {
               <div className="flex gap-2 flex-wrap pt-3 justify-end">
                 {/* Join Video Call Button */}
                 {(booking.consultationType === "video-followup" || booking.consultationType === "video-instant") &&
-                  booking.meetingRoom &&
-                  (booking.status === "confirmed" || booking.status === "approved") && (
+                  (booking.status === "confirmed" || booking.status === "approved" || booking.status === "pending") && (
                   <button
-                    onClick={() => navigate(`/video-call/${booking._id}`)}
+                    onClick={() => navigate(`/video-call/${booking.id}`)}
                     className="text-xs bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-xl font-semibold flex items-center gap-1.5 transition-all shadow-sm shadow-teal-600/20"
                   >
                     <FaVideo /> Join Consultation
@@ -367,7 +366,7 @@ const MyBookings = () => {
                   booking.status === "completed" &&
                   booking.prescribedTests?.length > 0 && (
                   <button
-                    onClick={() => setShowReportUpload(showReportUpload === booking._id ? null : booking._id)}
+                    onClick={() => setShowReportUpload(showReportUpload === booking.id ? null : booking.id)}
                     className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-md font-semibold flex items-center gap-1"
                   >
                     <FaCloudUploadAlt /> Upload Reports
@@ -381,7 +380,7 @@ const MyBookings = () => {
                   booking.followupExpiry &&
                   new Date() <= new Date(booking.followupExpiry) && (
                   <button
-                    onClick={() => setShowFollowupForm(showFollowupForm === booking._id ? null : booking._id)}
+                    onClick={() => setShowFollowupForm(showFollowupForm === booking.id ? null : booking.id)}
                     className="text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-3 py-1.5 rounded-md font-semibold flex items-center gap-1"
                   >
                     <FaVideo /> Free Follow-up Call
@@ -408,7 +407,7 @@ const MyBookings = () => {
                       Reschedule
                     </button>
                     <button
-                      onClick={() => handleCancel(booking._id)}
+                      onClick={() => handleCancel(booking.id)}
                       className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-md font-semibold"
                     >
                       Cancel

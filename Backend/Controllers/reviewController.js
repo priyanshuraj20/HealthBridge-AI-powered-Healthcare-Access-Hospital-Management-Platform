@@ -1,10 +1,11 @@
-import Review from "../models/ReviewSchema.js";
-import Doctor from "../models/DoctorSchema.js";
+import prisma from "../utils/prismaClient.js";
 
 //get all reviews
 export const getAllReviews = async (req, res) => {
   try {
-    const reviews = await Review.find({});
+    const reviews = await prisma.review.findMany({
+      include: { patient: { select: { name: true } } },
+    });
     res
       .status(200)
       .json({ success: true, message: "Successful", data: reviews });
@@ -15,21 +16,30 @@ export const getAllReviews = async (req, res) => {
 
 //create review
 export const createReview = async (req, res) => {
-  if (!req.body.doctor) req.body.doctor = req.params.doctorId;
-  if (!req.body.user) req.body.user = req.userId;
+  const doctorId = req.params.doctorId || req.body.doctor;
 
-  // console.log("Doctor",req.body.doctor);
-  // console.log("Review", req.body.user);
-
-  const newReview = new Review(req.body);
   try {
-    const savedReview = await newReview.save();
-    await Doctor.findByIdAndUpdate(req.body.doctor, {
-      $push: { reviews: savedReview._id },
+    const patient = await prisma.patient.findUnique({
+      where: { userId: req.userId },
     });
+    if (!patient) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Patient not found" });
+    }
+
+    const savedReview = await prisma.review.create({
+      data: {
+        doctorId,
+        patientId: patient.id,
+        reviewText: req.body.reviewText,
+        rating: Number(req.body.rating),
+      },
+    });
+
     res
       .status(200)
-      .json({ sucsess: true, message: "Review submitted", data: savedReview });
+      .json({ success: true, message: "Review submitted", data: savedReview });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

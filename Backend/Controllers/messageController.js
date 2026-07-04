@@ -1,8 +1,10 @@
-import Message from "../models/messageSchema.js"; 
+import prisma from "../utils/prismaClient.js";
 
 export const getAllMessages = async (req, res) => {
   try {
-    const messages = await Message.find({});
+    const messages = await prisma.contactMessage.findMany({
+      orderBy: { createdAt: "desc" },
+    });
     res.status(200).json({
       success: true,
       data: messages,
@@ -17,12 +19,13 @@ export const getAllMessages = async (req, res) => {
 
 export const newMessage = async (req, res) => {
   try {
-    
+
     const { name, email, subject, message } = req.body;
-    const newMessage = new Message({ name, email, subject, message });
-    await newMessage.save();
+    await prisma.contactMessage.create({
+      data: { name, email, subject, message },
+    });
     res.status(201).json({ message: 'Message sent successfully' });
-  } catch (error) { 
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };

@@ -13,8 +13,26 @@ export default function PatientHomepage({ user, setTab }) {
   const [bookings, setBookings] = useState([]);
   const [hospitals, setHospitals] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
 
-  // Fetch patient bookings
+  useEffect(() => {
+    // 1. Get user geolocation on mount
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.log("Geolocation error:", error);
+        }
+      );
+    }
+  }, []);
+
+  // Fetch patient bookings and hospitals
   useEffect(() => {
     const fetchBookings = async () => {
       setLoadingBookings(true);
@@ -38,8 +56,51 @@ export default function PatientHomepage({ user, setTab }) {
         const res = await fetch(`${BASE_URL}/hospitals`);
         const json = await res.json();
         if (res.ok) {
-          // Sort by distance and pick top 3
-          const sorted = (json.data || []).sort((a, b) => a.distance - b.distance);
+          const CITY_COORDS = {
+            delhi: { lat: 28.7041, lng: 77.1025 },
+            mumbai: { lat: 19.0760, lng: 72.8777 },
+            bangalore: { lat: 12.9716, lng: 77.5946 },
+            bengaluru: { lat: 12.9716, lng: 77.5946 },
+            chennai: { lat: 13.0827, lng: 80.2707 },
+            kolkata: { lat: 22.5726, lng: 88.3639 },
+            hyderabad: { lat: 17.3850, lng: 78.4867 },
+            pune: { lat: 18.5204, lng: 73.8567 },
+            ahmedabad: { lat: 23.0225, lng: 72.5714 },
+            "new york": { lat: 40.7128, lng: -74.0060 },
+            london: { lat: 51.5074, lng: -0.1278 },
+            dubai: { lat: 25.2048, lng: 55.2708 },
+            toronto: { lat: 43.6532, lng: -79.3832 },
+            singapore: { lat: 1.3521, lng: 103.8198 },
+            sydney: { lat: -33.8688, lng: 151.2093 },
+          };
+
+          const getHaversine = (lat1, lon1, lat2, lon2) => {
+            const R = 6371; // km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+              Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+          };
+
+          // Compute dynamic distance
+          const processedList = (json.data || []).map(h => {
+            let finalDist = h.distance;
+            if (userLocation) {
+              const cityKey = (h.city || "").toLowerCase().trim();
+              const coords = CITY_COORDS[cityKey];
+              if (coords) {
+                finalDist = parseFloat(getHaversine(userLocation.lat, userLocation.lng, coords.lat, coords.lng).toFixed(1));
+              }
+            }
+            return { ...h, distance: finalDist };
+          });
+
+          // Sort by computed distance and pick top 3
+          const sorted = processedList.sort((a, b) => a.distance - b.distance);
           setHospitals(sorted.slice(0, 3));
         }
       } catch (e) {}
@@ -47,7 +108,7 @@ export default function PatientHomepage({ user, setTab }) {
 
     fetchBookings();
     fetchHospitals();
-  }, []);
+  }, [userLocation]);
 
   const upcomingBooking = bookings.find(b => b.status === "confirmed" || b.status === "approved" || b.status === "pending");
   const completedBookings = bookings.filter(b => b.status === "completed");
@@ -79,27 +140,48 @@ export default function PatientHomepage({ user, setTab }) {
           {/* Quick Actions Panel */}
           <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-150 space-y-3.5">
             <h4 className="text-xs font-bold text-headingColor uppercase tracking-wider">Quick Operations</h4>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
               <button 
                 onClick={() => setTab("symptoms")}
                 className="bg-teal-50/40 hover:bg-teal-50 border hover:border-primaryColor/30 rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 transition-all text-center"
               >
                 <span className="text-xl">🩺</span>
-                <span className="text-[11px] font-bold text-headingColor leading-none">Check Symptoms</span>
+                <span className="text-[10px] font-bold text-headingColor leading-none">Symptom Checker</span>
               </button>
               <button 
                 onClick={() => navigate("/affordability")}
                 className="bg-indigo-50/40 hover:bg-indigo-50 border hover:border-indigo-600/30 rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 transition-all text-center"
               >
                 <span className="text-xl">💰</span>
-                <span className="text-[11px] font-bold text-headingColor leading-none">Compare Costs</span>
+                <span className="text-[10px] font-bold text-headingColor leading-none">Compare Costs</span>
               </button>
               <button 
                 onClick={() => navigate("/doctors")}
                 className="bg-amber-50/40 hover:bg-amber-50 border hover:border-amber-600/30 rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 transition-all text-center"
               >
                 <span className="text-xl">🏥</span>
-                <span className="text-[11px] font-bold text-headingColor leading-none">Find Hospitals</span>
+                <span className="text-[10px] font-bold text-headingColor leading-none">Find Hospitals</span>
+              </button>
+              <button 
+                onClick={() => setTab("bookings")}
+                className="bg-rose-50/40 hover:bg-rose-50 border hover:border-rose-600/30 rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 transition-all text-center"
+              >
+                <span className="text-xl">📋</span>
+                <span className="text-[10px] font-bold text-headingColor leading-none">Appointments</span>
+              </button>
+              <button 
+                onClick={() => setTab("prescription-ocr")}
+                className="bg-purple-50/40 hover:bg-purple-50 border hover:border-purple-600/30 rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 transition-all text-center"
+              >
+                <span className="text-xl">📷</span>
+                <span className="text-[10px] font-bold text-headingColor leading-none">Scan Rx</span>
+              </button>
+              <button 
+                onClick={() => setTab("family")}
+                className="bg-emerald-50/40 hover:bg-emerald-50 border hover:border-emerald-600/30 rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 transition-all text-center"
+              >
+                <span className="text-xl">👨‍👩‍👧</span>
+                <span className="text-[10px] font-bold text-headingColor leading-none">Family Vault</span>
               </button>
             </div>
           </div>
@@ -134,10 +216,10 @@ export default function PatientHomepage({ user, setTab }) {
                   <span className="bg-teal-50 border border-teal-200 text-teal-700 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded block text-center mb-2">
                     {upcomingBooking.status}
                   </span>
-                  {upcomingBooking.meetingRoom && (upcomingBooking.status === "confirmed" || upcomingBooking.status === "approved") && (
+                  {(upcomingBooking.consultationType === "video-followup" || upcomingBooking.consultationType === "video-instant") && (upcomingBooking.status === "confirmed" || upcomingBooking.status === "approved" || upcomingBooking.status === "pending") && (
                     <button 
-                      onClick={() => navigate(`/video-call/${upcomingBooking._id}`)}
-                      className="bg-primaryColor hover:bg-teal-700 text-white font-bold text-[10px] px-3 py-1.5 rounded-lg shadow-sm"
+                      onClick={() => navigate(`/video-call/${upcomingBooking.id}`)}
+                      className="bg-primaryColor hover:bg-teal-700 text-white font-bold text-[10px] px-3.5 py-1.5 rounded-lg shadow-sm"
                     >
                       Join Call
                     </button>
@@ -153,10 +235,10 @@ export default function PatientHomepage({ user, setTab }) {
           <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-150 space-y-4">
             <h4 className="text-xs font-bold text-headingColor uppercase tracking-wider">Affordable Partner Hospitals Near Me</h4>
             <div className="grid md:grid-cols-3 gap-4">
-              {hospitals.map((h, i) => (
+               {hospitals.map((h) => (
                 <div 
-                  key={h._id} 
-                  onClick={() => navigate(`/doctors/${h._id}`)}
+                  key={h.id} 
+                  onClick={() => navigate(`/doctors/${h.id}`)}
                   className="border rounded-2xl p-4 bg-gray-50 hover:bg-white hover:border-primaryColor/30 transition-all cursor-pointer space-y-2 shadow-sm"
                 >
                   <span className="bg-amber-400 text-slate-900 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded">

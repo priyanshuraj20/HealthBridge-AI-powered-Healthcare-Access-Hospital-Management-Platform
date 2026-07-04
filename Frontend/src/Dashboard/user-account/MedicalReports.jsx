@@ -188,7 +188,7 @@ const MedicalReports = () => {
           <div className="space-y-4">
             {reports.map((report) => (
               <div
-                key={report._id}
+                key={report.id}
                 className="bg-white p-5 border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
               >
                 <div className="flex justify-between items-start mb-3">
@@ -199,7 +199,7 @@ const MedicalReports = () => {
                     </span>
                   </div>
                   <span className="text-xs text-gray-400">
-                    {new Date(report.createdAt).toLocaleDateString()}
+                    {new Date(report.uploadedAt).toLocaleDateString()}
                   </span>
                 </div>
 

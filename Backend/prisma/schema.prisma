@@ -1,6 +1,6 @@
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -44,6 +44,7 @@ model Patient {
   familyMembers    FamilyMember[]
   reviews          Review[]
   medicalLoans     MedicalLoan[]
+  prescriptions    Prescription[]
 }
 
 model FamilyMember {
@@ -89,6 +90,7 @@ model Hospital {
   distance            Float           @default(0.0)
   rating              Float           @default(4.5)
   waitingTime         Int             @default(30)
+  photoUrl            String?
   specialties         String          // Comma-separated specialties list
   specialtiesHi       String?         // Comma-separated specialties list in Hindi
   supportedInsurances String          // Comma-separated accepted insurance list
@@ -140,6 +142,7 @@ model Doctor {
   offlinePrice    Float         @default(500)
   onlinePrice     Float?
   isTelemedicine  Boolean       @default(false)
+  isApproved      String        @default("approved") // "pending" | "approved" | "cancelled"
   rating          Float         @default(4.5)
   bio             String?
   email           String        @unique
@@ -152,6 +155,7 @@ model Doctor {
   slots           Slot[]
   appointments    Appointment[]
   reviews         Review[]
+  prescriptions   Prescription[]
 }
 
 model Slot {
@@ -168,32 +172,47 @@ model Slot {
 }
 
 model Appointment {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   patientId     String
   doctorId      String
-  hospitalId    String
-  dateTime      DateTime
-  mode          String   
-  price         Float
-  paymentStatus String   // "pending" | "paid" | "failed"
-  status        String   // "upcoming" | "completed" | "cancelled"
+  hospitalId    String?
+  dateTime      DateTime?
+  appointmentDate String?          // legacy "YYYY-MM-DD" string date
+  timeSlot      Json?             // { day, startingTime, endingTime }
+  mode          String    @default("offline")
+  price         Float     @default(0)
+  paymentStatus String    @default("pending")  // "pending" | "paid" | "failed"
+  isPaid        Boolean   @default(false)
+  status        String    @default("pending")   // "pending"|"confirmed"|"upcoming"|"completed"|"cancelled"|"rescheduled"|"no-show"|"approved"
+  symptoms      String?
+  consultationType String @default("physical")  // "physical" | "video-instant" | "video-followup"
   meetLink      String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  meetingRoom   String?           // VideoSDK / room name string
+  prescribedTests Json?
+  uploadedReports Json?
+  doctorNotes   String?
+  aiSummary     Json?
+  followupExpiry DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   // Relations
-  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  doctor        Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  hospital      Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
-  meetingRoom   Meeting?
+  patient       Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor        Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  hospital      Hospital? @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  meeting       Meeting?
+  prescriptions Prescription[]
 }
 
 model Meeting {
   id            String   @id @default(uuid())
   appointmentId String   @unique
   roomId        String
-  token         String
+  patientToken  String   @default("")
+  hospitalToken String   @default("")
+  status        String   @default("created")  // "created" | "active" | "ended"
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relations
   appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
@@ -203,7 +222,9 @@ model Report {
   id            String   @id @default(uuid())
   patientId     String
   appointmentId String?
+  title         String?
   fileUrl       String
+  fileType      String?  @default("image")  // "pdf" | "image"
   aiSummary     String?
   uploadedAt    DateTime @default(now())
 
@@ -211,10 +232,28 @@ model Report {
   patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
 }
 
+model Prescription {
+  id            String   @id @default(uuid())
+  doctorId      String
+  patientId     String
+  appointmentId String?
+  medicines     Json     // [{ name, dosage, duration, instructions }]
+  notes         String?
+  aiExplanation String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  doctor        Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient       Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+}
+
 model ContactMessage {
   id        String   @id @default(uuid())
   name      String
   email     String
+  subject   String?
   message   String
   createdAt DateTime @default(now())
 }

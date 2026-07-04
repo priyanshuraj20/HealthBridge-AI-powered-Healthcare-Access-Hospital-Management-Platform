@@ -1,7 +1,7 @@
 import { useState, useRef, useContext } from "react";
 import userImg from "../../assets/images/defaultUser.jpg";
 import { NavLink, Link, useNavigate } from "react-router-dom";
-import { BiMenu, BiX, BiSearch } from "react-icons/bi";
+import { BiMenu, BiX, BiSearch, BiChevronRight } from "react-icons/bi";
 import { authContext } from "../../context/AuthContext.jsx";
 import { t } from "../../utils/translate.js";
 
@@ -18,8 +18,14 @@ const Header = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   let [menuStatus, setMenuStatus] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const menuRef = useRef(null);
-  const { user, role, token } = useContext(authContext);
+  const { user, role, token, dispatch } = useContext(authContext);
+
+  const handleLogout = () => {
+    dispatch({ type: "LOGOUT" });
+    navigate("/home");
+  };
 
   const toggleMenu = () => {
     setMenuStatus(!menuStatus);
@@ -67,15 +73,15 @@ const Header = () => {
 
           {/* Navigation Links */}
           <div className="navigation" ref={menuRef}>
-            <ul className="menu flex gap-[2.7rem] items-center">
+            <ul className="menu flex gap-2 lg:gap-5 items-center">
               {navLinks.map((link, idx) => (
                 <li key={idx}>
                   <NavLink
                     to={link.path}
                     className={(navClass) =>
                       navClass.isActive
-                        ? "text-primaryColor text-[15px] leading-7 font-[600]"
-                        : "text-textColor text-[15px] leading-7 font-[500] hover:text-primaryColor"
+                        ? "text-primaryColor text-[14px] leading-7 font-[600] whitespace-nowrap"
+                        : "text-textColor text-[14px] leading-7 font-[500] hover:text-primaryColor whitespace-nowrap"
                     }
                   >
                     {t(link.display)}
@@ -86,10 +92,10 @@ const Header = () => {
           </div>
 
           {/* Right Action buttons */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2.5 lg:gap-4">
             
             {/* Header Search bar */}
-            <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center gap-2 bg-[#f3f4f6] border border-gray-200 rounded-lg px-3 py-1 focus-within:border-primaryColor transition-all">
+            <form onSubmit={handleSearchSubmit} className="hidden xl:flex items-center gap-2 bg-[#f3f4f6] border border-gray-200 rounded-lg px-3 py-1 focus-within:border-primaryColor transition-all">
               <BiSearch className="text-gray-400 w-3.5 h-3.5" />
               <input
                 type="text"
@@ -100,62 +106,135 @@ const Header = () => {
               />
             </form>
 
-            {/* Language Switcher */}
-            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-full border border-gray-200">
-              <button
-                onClick={() => {
-                  localStorage.setItem("lang", "en");
-                  window.location.reload();
-                }}
-                className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full transition-all leading-none ${
-                  (localStorage.getItem("lang") || "en") === "en"
-                    ? "bg-primaryColor text-white shadow-sm"
-                    : "text-textColor hover:text-headingColor"
-                }`}
-              >
-                EN
-              </button>
-              <button
-                onClick={() => {
-                  localStorage.setItem("lang", "hi");
-                  window.location.reload();
-                }}
-                className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full transition-all leading-none ${
-                  localStorage.getItem("lang") === "hi"
-                    ? "bg-primaryColor text-white shadow-sm"
-                    : "text-textColor hover:text-headingColor"
-                }`}
-              >
-                HI
-              </button>
-            </div>
-
-            {token && user ? (
-              <div>
-                <Link
-                  className="flex items-center gap-2"
-                  to={`${
-                    role === "org_admin"
-                      ? "/organization/dashboard"
-                      : role === "admin"
-                      ? "/admin/dashboard"
-                      : "/users/profile/me"
-                  }`}
+            {token && token !== "null" && token !== "undefined" && user && Object.keys(user).length > 0 ? (
+              <div className="relative z-50">
+                <button
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="flex items-center gap-2 focus:outline-none"
                 >
-                  <figure className="w-[35px] h-[35px] rounded-full overflow-hidden border border-primaryColor">
+                  <figure className="w-[35px] h-[35px] rounded-full overflow-hidden border border-primaryColor cursor-pointer">
                     <img
                       src={user?.photo || userImg}
                       alt="userImg"
                       className="w-full h-full object-cover rounded-full"
                     />
                   </figure>
-                </Link>
+                </button>
+
+                {showDropdown && (
+                  <div className="absolute right-0 mt-3.5 w-60 bg-white border border-gray-150 rounded-2xl p-4 shadow-xl space-y-3.5 transition-all text-left">
+                    {/* User profile brief */}
+                    <div className="space-y-0.5 border-b pb-2.5">
+                      <p className="font-extrabold text-headingColor text-xs truncate">{user?.name || "Member"}</p>
+                      <p className="text-[10px] text-textColor truncate">{user?.email}</p>
+                    </div>
+
+                    {/* Navigation */}
+                    <div className="space-y-1.5 text-xs text-textColor font-bold">
+                      <Link
+                        to={`${
+                          role === "org_admin"
+                            ? "/organization/dashboard"
+                            : role === "admin"
+                            ? "/admin/dashboard"
+                            : "/users/profile/me"
+                        }`}
+                        onClick={() => setShowDropdown(false)}
+                        className="flex items-center justify-between p-2 rounded-xl hover:bg-teal-50/50 hover:text-primaryColor transition-all"
+                      >
+                        <span>Dashboard</span>
+                        <BiChevronRight size={16} />
+                      </Link>
+                    </div>
+
+                    {/* Bilingual Language Selection */}
+                    <div className="flex items-center justify-between border-t pt-2.5">
+                      <span className="text-[10px] font-bold text-headingColor uppercase tracking-wider">Language</span>
+                      <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-full border border-gray-200">
+                        <button
+                          onClick={() => {
+                            localStorage.setItem("lang", "en");
+                            window.location.reload();
+                          }}
+                          className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full transition-all leading-none ${
+                            (localStorage.getItem("lang") || "en") === "en"
+                              ? "bg-primaryColor text-white shadow-sm"
+                              : "text-textColor hover:text-headingColor"
+                          }`}
+                        >
+                          EN
+                        </button>
+                        <button
+                          onClick={() => {
+                            localStorage.setItem("lang", "hi");
+                            window.location.reload();
+                          }}
+                          className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full transition-all leading-none ${
+                            localStorage.getItem("lang") === "hi"
+                              ? "bg-primaryColor text-white shadow-sm"
+                              : "text-textColor hover:text-headingColor"
+                          }`}
+                        >
+                          HI
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Light/Dark Theme Switcher */}
+                    <div className="flex items-center justify-between border-t pt-2.5">
+                      <span className="text-[10px] font-bold text-headingColor uppercase tracking-wider">Theme</span>
+                      <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-full border border-gray-200">
+                        <button
+                          onClick={() => {
+                            localStorage.setItem("theme", "light");
+                            document.documentElement.classList.remove("dark");
+                            window.location.reload();
+                          }}
+                          className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full transition-all leading-none ${
+                            (localStorage.getItem("theme") || "light") === "light"
+                              ? "bg-primaryColor text-white shadow-sm"
+                              : "text-textColor hover:text-headingColor"
+                          }`}
+                        >
+                          Light
+                        </button>
+                        <button
+                          onClick={() => {
+                            localStorage.setItem("theme", "dark");
+                            document.documentElement.classList.add("dark");
+                            window.location.reload();
+                          }}
+                          className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full transition-all leading-none ${
+                            localStorage.getItem("theme") === "dark"
+                              ? "bg-primaryColor text-white shadow-sm"
+                              : "text-textColor hover:text-headingColor"
+                          }`}
+                        >
+                          Dark
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Logout Button */}
+                    <button
+                      onClick={handleLogout}
+                      className="w-full bg-red-50 hover:bg-red-100 text-red-600 text-xs font-extrabold py-2 rounded-xl transition-all text-center mt-2"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
-              <div>
+              <div className="flex items-center gap-2">
                 <Link to="/login">
-                  <button className="bg-primaryColor text-white py-2 px-6 font-semibold h-9 flex items-center rounded-full text-sm">
+                  <button className="border border-primaryColor text-primaryColor hover:bg-primaryColor/5 font-extrabold text-[11px] px-5 py-2 rounded-full transition-all leading-none">
                     Login
+                  </button>
+                </Link>
+                <Link to="/signup">
+                  <button className="bg-primaryColor hover:bg-teal-700 text-white font-extrabold text-[11px] px-5 py-2 rounded-full shadow-sm transition-all leading-none">
+                    Register
                   </button>
                 </Link>
               </div>

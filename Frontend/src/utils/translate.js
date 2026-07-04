@@ -18,6 +18,18 @@ const translations = {
   "Distance": "दूरी",
   "Emergency": "आपातकालीन",
   "Supported Insurances": "स्वीकृत बीमा",
+  "AI-Powered Digital Healthcare Platform": "एआई-संचालित डिजिटल स्वास्थ्य सेवा मंच",
+  "From Symptoms to Recovery —": "लक्षणों से ठीक होने तक —",
+  "Everything in One Platform": "सब कुछ एक ही मंच पर",
+  "Find hospitals, compare treatment costs, check insurance eligibility, book video consultations, upload reports, receive AI-powered medical summaries, and manage your family's health from one secure platform.": "अस्पतालों को खोजें, उपचार की लागतों की तुलना करें, बीमा पात्रता की जांच करें, वीडियो परामर्श बुक करें, रिपोर्ट अपलोड करें, एआई-संचालित चिकित्सा सारांश प्राप्त करें, और एक ही सुरक्षित मंच से अपने परिवार के स्वास्थ्य का प्रबंधन करें।",
+  "Find a Hospital": "अस्पताल खोजें",
+  "Talk to AI": "एआई से बात करें",
+  "24/7": "24/7",
+  "Live Bed Monitoring": "लाइव बेड मॉनिटरिंग",
+  "100%": "100%",
+  "Ayushman Bharat": "आयुष्मान भारत",
+  "8+": "8+",
+  "AI-Powered Tools": "एआई-संचालित उपकरण",
 
   // Profile Pages
   "Healthcare Home": "स्वास्थ्य सेवा होम",
@@ -68,6 +80,8 @@ const translations = {
 
 export const t = (key) => {
   const lang = localStorage.getItem("lang") || "en";
+  const role = localStorage.getItem("role") || "patient";
+  if (role === "doctor" || role === "hospital") return key;
   if (lang === "en") return key;
   return translations[key] || key;
 };

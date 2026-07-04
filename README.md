@@ -1,83 +1,100 @@
 # HealthBridge – AI-powered Healthcare Access & Hospital Management Platform
 
-![HealthBridge Homepage](./homepage_screenshot.png)
-
-HealthBridge is a full-stack, production-quality medical portal designed to resolve transparency in healthcare access. It enables patients to check insurance policy coverages, calculate out-of-pocket patient co-pays, verify PM-JAY (Ayushman Bharat) eligibility, check live hospital bed counts, compare medical treatment costs, find generic drug alternatives, and book medical consultations with AI assistants.
+HealthBridge is a full-stack, production-quality medical portal designed to resolve transparency in healthcare access. It shifts the paradigm from standard doctor listings to a **hospital-centric network platform**, enabling patients to find partner clinical branches, check live bed status, estimate co-pays, compare generic drug alternatives, verify Ayushman Bharat eligibility, and consult with doctors virtually.
 
 ---
 
-## 🌟 Features Blueprint (What, How, Where)
+## 🏗️ System Architecture & Data Flow
 
-This matrix details the functional architecture, implementation details, and navigation locations for every module in HealthBridge.
-
-| Feature Module | What It Does (What) | How It Works Under the Hood (How) | Where to Find It (Where) |
-| :--- | :--- | :--- | :--- |
-| **1. Healthcare Financial Assistant** | End-to-end wizard matching disease surgery costs, Ayushman Bharat qualifiers, private co-pays, and medical EMI/loan calculators. | Triggers cost predictions across private corporate centers versus government civil centers, checks scheme rules, and returns loan estimates. | **Affordability Hub** (top header navigation) ➔ *Healthcare Financial Assistant* (default spotlight tab). |
-| **2. Government Schemes Checker** | Validates patient eligibility for public healthcare initiatives (Ayushman Bharat) based on family size and household income criteria. | Reads rule criteria from `Backend/config/schemesConfig.json` via the `handleSchemeCheck` handler in [affordabilityController.js](file:///c:/Users/PRIYANSHU%20RAJ/Desktop/Hospital-Appointment/Backend/Controllers/affordabilityController.js). | **Affordability Hub** (top header navigation) ➔ *Insurance & Ayushman Bharat* tab. |
-| **3. Co-Pay & Out-of-Pocket Estimator** | Estimates how much a patient will pay out-of-pocket for specific treatments depending on their insurance provider coverage limit. | Computes patient co-pay percentage and deductible limits mapped in the `Hospital` collection schemas. | **Affordability Hub** (top header navigation) ➔ *Insurance & Ayushman Bharat* ➔ *Co-Pay Estimation Form*. |
-| **4. Prescription OCR** | Multimodal OCR engine scanning uploaded prescriptions to extract medications, schedule daily reminders, and explain dosage instructions. | Passes Cloudinary file URLs to OpenRouter LLM multimodal completions and updates the user's daily calendar logs. | **Patient Dashboard** ➔ *Prescription OCR* tab. |
-| **5. Family Health Dashboard** | Multi-profile management system enabling a single account holder to track reports, vaccinations, and appointments for parents/children. | Stores nested sub-documents inside the `User` schema under `familyMembers` with specialized CRUD operations. | **Patient Dashboard** ➔ *Family Manager* tab. |
-| **6. Insurance Claim Assistant** | Analyzes uploaded billing sheets, doctor prescriptions, and medical files to compile claim summaries and alert on missing documentation. | Evaluates file attachments via multimodal completions, identifying inconsistencies, mismatched figures, or missing discharge summaries. | **Patient Dashboard** ➔ *Claim Assistant* tab. |
-| **7. Smart Recommendation Engine** | Suggests optimal hospitals matching patient's specific budget, insurance network, max distance threshold, and target waiting time. | Express route `/hospitals/recommendations` queries the `Hospital` model filtering by geographic distance, rating index, and active department listings. | **Affordability Hub** (top header navigation) ➔ *Compare Hospitals* filter panel. |
-| **8. Hospital Comparison Table** | Compares partner medical centers sorting by treatment fee ranges, accepted insurance plans, average wait times, and location. | Frontend fetches the hospital list from `/hospitals` and mounts them into a sortable table with filter toggles. | **Affordability Hub** (top header navigation) ➔ *Compare Hospitals* tab grid. |
-| **9. Medical Loans & EMI Calculator** | Computes monthly installments for medical procedures at a flat 10% annual rate, and handles loan submission requests. | Computes rates via `/financial/estimate?amount=&months=`. Submits loan applications to the `MedicalLoan` collection via `POST /financial/loan-request`. | **Affordability Hub** (top header navigation) ➔ *Medical Loans / EMI* tab. |
-| **10. Live Bed Availability Monitor** | Displays real-time counts of available ICU, General Ward, Private Suite, and Emergency beds across network hospitals. | Feeds live from `/hospitals/beds` route. Integrates directly with the `Hospital` collection's nested beds sub-document schema. | **Affordability Hub** (top header navigation) ➔ *Beds Availability* tab dashboard. |
-| **11. Generic Pharmacy Savings** | Matches branded medication names against generic alternatives, displaying price comparisons and percentage savings. | Feeds from `/pharmacy?query=`. Searches the database for matching active ingredients, calculating savings percentage in real-time. | **Affordability Hub** (top header navigation) ➔ *Pharmacy Savings* search panel. |
-| **12. Drug Interaction Checker** | Evaluates a list of added medicines to flag dangerous synergistic effects or drug-drug contraindications. | Feeds from `POST /ai/drug-interaction`. Leverages the OpenRouter completion model (offline fallback detects dangerous combos like Warfarin + Aspirin). | **Affordability Hub** (top header navigation) ➔ *Drug Interactions* tab. |
-| **13. AI Symptom Checker** | Triage helper that analyzes typed symptoms to recommend clinical specialties and urgency levels (Low/Medium/High). | Calls `/ai/symptom-checker` utilizing the Gemini API to identify urgency levels, general explanations, and matching clinical departments. | **Patient Dashboard** ➔ *AI Symptom Checker* tab. |
-| **14. AI Referral & Referral Guides** | Chatbot assistants offering customized financial counseling, co-pay explanations, and hospital referrals. | Implements `/ai/chat-assistant`, `/ai/financial-counsel`, and `/ai/insurance-guide` routes parsing conversational context. | **AI Triage Center** (accessible via bottom-right floating chat bubble or `/ai-guides` page). |
-| **15. Unified Booking & Patient Records** | Prevents booking overlapping slots, handles Stripe payments, lets patients download PDF prescriptions, and upload reports. | Checks date conflicts inside `bookingController.js`. Prescriptions render print-ready stylesheets. Reports upload to Cloudinary and fetch AI summaries. | **Patient/Doctor Dashboard** ➔ *My Appointments*, *Medical Reports*, or *Prescriptions* tabs. |
-
----
-
-## 🛠️ Technology Stack
-
-- **Frontend Client**: React.js, Vite, TailwindCSS (Clinical layout overrides)
-- **Backend API**: Node.js, Express.js
-- **Database Layer**: MongoDB (Atlas) via Mongoose
-- **Integrations**: Stripe API (Payments), Cloudinary API (Media Uploads), OpenRouter API (Gemini LLM)
-- **Email Service**: Mailtrap Transactional API (with nodemailer fallback)
-
----
-
-## 📂 Repository Folder Structure
+HealthBridge utilizes a modern, robust, and highly concurrent three-tier architecture:
 
 ```
-Hospital-Appointment/
-├── Backend/              # Node.js Express Backend
-│   ├── config/           # PM-JAY eligibility threshold criteria
-│   ├── Controllers/      # Business logic handlers (AI, Loans, Costing, Pharmacy)
-│   ├── models/           # Hospital & MedicalLoan Mongoose schemas
-│   ├── Routes/           # Endpoint routes
-│   └── utils/            # Seeder database entries and Mailtrap configurations
-├── Frontend/             # React Client Portal & Dashboards
-│   ├── src/
-│   │   ├── components/   # UI elements & floating chat assistant
-│   │   ├── Dashboard/    # Patient, Doctor, & Admin tabs
-│   │   ├── pages/        # Affordability Hub & AI Guides pages
-│   │   └── routes/       # Protected routers mapping
-│   └── package.json
-├── PROJECT_DOCUMENTATION.md # Design architecture and database diagrams
-└── README.md             # Functional Blueprint and Startup instructions
+                  ┌──────────────────────────────┐
+                  │        React Client          │
+                  │   (Vite + Tailwind CSS)      │
+                  └──────────────┬───────────────┘
+                                 │ HTTP / WebSockets
+                                 ▼
+                  ┌──────────────────────────────┐
+                  │      Express API Server      │
+                  │         (Node.js)            │
+                  └──────────────┬───────────────┘
+                                 │ Prisma ORM
+                                 ▼
+                  ┌──────────────────────────────┐
+                  │  Neon Serverless PostgreSQL  │
+                  │     (Database Cluster)       │
+                  └──────────────────────────────┘
 ```
+
+### 1. Database & Persistence Layer
+* **Database**: Serverless PostgreSQL hosted on Neon, providing rapid scale-to-zero capabilities and optimized connection pools.
+* **ORM (Prisma)**: Manages schema definitions, relations, and type safety. Optimized using a `connection_limit=3` pool constraint to prevent client starvation errors on serverless database endpoints.
+
+### 2. Client-Side Presentation
+* **Interactive Views**: Built on React.js, compiling to lightweight static assets.
+* **Smooth Inertia**: Employs `locomotive-scroll` for fluid momentum scrolling, controlled via React pathname hook transitions.
+* **Bilingual Localization**: Includes a client translation lookup engine (`translate.js`). Toggling language switches patient interfaces to Hindi, while locking hospital authorization consoles (Doctor & Org Admin dashboards) strictly to English to maintain administrative consistency.
+
+---
+
+## 🎥 MVP Video Consultation (Deep Dive)
+
+Our primary MVP feature is the **Secure HD Video Consultation Rooms** which allows virtual consultations, live prescription updates, and AI-generated clinical summaries.
+
+```
+┌─────────┐            1. Book Video Consult            ┌────────┐
+│ Patient ├────────────────────────────────────────────►│ Active │
+└─────────┘                                             │ Engine │
+     │                                                  └────┬───┘
+     │ 3. Match / Join Room                                  │ 2. Request WebRTC Tokens
+     ▼                                                       ▼
+┌─────────┐         4. HD Peer-to-Peer Stream           ┌────────┐
+│VideoSDK │◄────────────────────────────────────────────┤Backend │
+└─────────┘                                             └────────┘
+```
+
+### Technical Workflow:
+1. **Booking/Matching**: A patient schedules an online consultation or triggers a **🔴 Emergency Live Consult** on the Telemedicine dashboard.
+2. **Room Creation**: The backend generates a unique `meetingRoom` ID (e.g. `healthbridge-room-395810`).
+3. **Secure Token Generation**: The backend uses its `VIDEOSDK_API_KEY` and `VIDEOSDK_SECRET` to sign custom HMAC-SHA256 JWT tokens. These contain specific permission grants (`allow_join: true`, `allow_mod: true`) tailored to each participant's role (patient/doctor).
+4. **WebRTC Stream Launch**: Both patient and doctor join the room from their dashboards. The frontend loads the VideoSDK `MeetingProvider` with the tokens, establishing a direct peer-to-peer audio-video stream.
+5. **Real-time Prescriptions**: During the call, doctors type and submit generic/branded medicines, which instantly write to the database and update the patient's record timeline.
+6. **AI visit Summaries**: The AI counselor reads call logs and outputs clinical summaries of diagnosis and next steps.
+
+---
+
+## 🌟 Comprehensive Features Blueprint
+
+| Feature Module | What It Does (What) | How It Works (Technical Implementation) |
+| :--- | :--- | :--- |
+| **1. Emergency Telemedicine** | Connects patients instantly with available doctors for high-fever or sudden emergency cases. | `POST /bookings/book-instant` finds online telemedicine doctors, creates pre-confirmed bookings, bypasses payment gateways, and generates room links immediately. |
+| **2. Hospital Discovery** | Lists network partner hospitals and clinics rather than individual doctor lists. | Fetches database records from the `Hospital` model. Clicking a hospital card reveals details where specialty categories filter matching doctors. |
+| **3. Geolocation Sorting** | Sorts hospitals by physical proximity. | Obtains coordinates from the browser Geolocation API and computes GPS distance relative to mapped hospital city coordinates using the **Haversine formula**. |
+| **4. Cost Estimate Auditor** | Compares surgical procedure costs side-by-side. | Parses treatment price ranges across private clinics versus government civil centers, outlining potential patient cost exposure. |
+| **5. Co-Pay Estimator** | Calculates out-of-pocket costs. | Mapped in the database, it applies co-insurance and deductible thresholds based on the patient's insurance provider. |
+| **6. Generic Drug Savings** | Recommends cheaper generic drug equivalents. | Queries the pharmacy database index by active chemical ingredient to discover generic drug equivalents, saving patients 80%+ on prescription costs. |
+| **7. Prescription OCR Scanner** | Digitizes doctor prescriptions from photo uploads. | Passes the Cloudinary file URL to OpenRouter LLM multimodal completions, extracting dosages, notes, and configuring daily reminder schedules. |
+| **8. Ayushman Bharat Portal** | Validates government scheme eligibility. | Evaluates household monthly income and family member constraints against rules loaded from `schemesConfig.json`. |
+| **9. Live Bed Monitor** | Tracks ICU, General, and Private bed vacancies. | Integrates with database-level bed counts updating in real-time on the patient's financial helper dashboard. |
+| **10. Drug-Drug Interactions** | Detects unsafe chemical synergies. | An AI scanner checks potential warnings (such as Warfarin + Aspirin) to avoid drug-drug contraindications. |
+| **11. Family Health Vault** | Multi-profile tracking for dependents. | Mapped to the `Patient` model, allows adding family profiles for consolidated vaccination, booking, and report tracking. |
 
 ---
 
 ## ⚙️ Environment Configurations
 
-Before starting the applications, configure your environment variables.
-
 ### Backend Setup (`Backend/.env`)
 Create a `.env` file in the `Backend` directory containing:
 ```env
 PORT=5000
-MONGO_URL=mongodb+srv://auth_Server:Pu2028@cluster0.vq84e7l.mongodb.net/HealthBridge?retryWrites=true&w=majority
+DATABASE_URL="postgres://user:password@neon-host/db?sslmode=require&connection_limit=3"
 JWT_SECRET_KEY=healthbridge_jwt_secret_token_key_99
 CLIENT_SITE_URL=http://localhost:5173
-OPENROUTER_API_KEY=your_openrouter_api_key  # Provided key is updated in your active file!
+OPENROUTER_API_KEY=your_openrouter_api_key
 OPENROUTER_MODEL=google/gemini-2.5-flash
-MAILTRAP_TOKEN=6bc9abd243d7d2354faf9bc2c557f4ae
-MAILTRAP_SENDER=hello@demomailtrap.co
+VIDEOSDK_API_KEY=your_videosdk_api_key
+VIDEOSDK_SECRET=your_videosdk_secret
 ```
 
 ### Frontend Setup (`Frontend/.env`)
@@ -92,34 +109,21 @@ VITE_UPLOAD_PRESET=doctor_portal
 
 ## 🚀 Running Locally
 
-Follow these steps to run the application on your local machine.
-
 ### Prerequisite
 Ensure you have **Node.js v18.0.0+** and **npm** installed.
 
 ### 1. Start the API Server
 ```bash
-# Navigate to the backend directory
 cd Backend
-
-# Install dependencies
 npm install
-
-# Start the development server (automatically seeds mock hospitals & beds if empty)
-npm run start-dev
+npm run start
 ```
 
 ### 2. Start the Frontend Application
 ```bash
-# Navigate to the frontend directory
 cd ../Frontend
-
-# Install dependencies
 npm install
-
-# Start the Vite local server
 npm run dev
 ```
 
 The application will launch locally at `http://localhost:5173`.
-To read deep system architectures, check out [PROJECT_DOCUMENTATION.md](file:///c:/Users/PRIYANSHU%20RAJ/Desktop/Hospital-Appointment/PROJECT_DOCUMENTATION.md).

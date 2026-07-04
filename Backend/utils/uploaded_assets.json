@@ -1,0 +1,27 @@
+{
+  "hospitals": [
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154816/ewyeardjolzhvsridd5h.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154816/fux6ujf1jerwsevxr6l9.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154817/gdbaibfogf0ezk937kxk.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154818/j5jt3nz2dizh66hrc1cv.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154818/gq4moanvw6pvp7zqs1iq.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154819/bmstbueuniu5xdtulbu7.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154822/sf1xq9payrmkcdmlny4n.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154825/y0pcpscgx8i5nyj7mmzz.jpg"
+  ],
+  "maleDoctors": [
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154825/brmnvgfntxfsnjyygqer.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154826/q3xsiqatc7funvumhfbn.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154827/yt4ad9fgnjqxjmrrtg3m.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154827/xfbk78ubcjvlbawty5dp.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154829/pxvfat0w5cs2xdrrylj1.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154831/ukqjittxrjlgt8y0wn9o.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154832/lyhbrshwct1mbrsbt5kk.jpg"
+  ],
+  "femaleDoctors": [
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154833/ey6aujdhyznljdwuqose.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154834/dhauynfdg9zxbhjbtu4k.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154836/rjudzieq3d3yf15puzxb.jpg",
+    "https://res.cloudinary.com/dnb4jcioy/image/upload/v1783154837/br5xilmpc4rwjqnfnzk0.jpg"
+  ]
+}

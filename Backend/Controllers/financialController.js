@@ -1,5 +1,4 @@
-import MedicalLoan from "../models/MedicalLoanSchema.js";
-import Hospital from "../models/HospitalSchema.js";
+import prisma from "../utils/prismaClient.js";
 
 // Mathematical EMI calculation helper (10% flat annual interest)
 const calculateEMI = (amount, months) => {
@@ -16,7 +15,6 @@ const calculateEMI = (amount, months) => {
 // Create a new Medical EMI / Loan request
 export const createLoanRequest = async (req, res) => {
   const { hospitalId, treatmentName, requestedAmount, tenureMonths } = req.body;
-  const userId = req.userId;
 
   if (!hospitalId || !treatmentName || !requestedAmount || !tenureMonths) {
     return res.status(400).json({
@@ -26,24 +24,32 @@ export const createLoanRequest = async (req, res) => {
   }
 
   try {
-    const hospital = await Hospital.findById(hospitalId);
+    const hospital = await prisma.hospital.findUnique({
+      where: { id: hospitalId },
+      include: { treatmentCosts: true },
+    });
     if (!hospital) {
       return res.status(404).json({ success: false, message: "Hospital not found" });
     }
 
+    const patient = await prisma.patient.findUnique({ where: { userId: req.userId } });
+    if (!patient) {
+      return res.status(404).json({ success: false, message: "Patient not found" });
+    }
+
     const monthlyEMI = calculateEMI(requestedAmount, tenureMonths);
 
-    const newLoan = new MedicalLoan({
-      user: userId,
-      hospital: hospitalId,
-      treatmentName,
-      requestedAmount: parseFloat(requestedAmount),
-      tenureMonths: parseInt(tenureMonths),
-      monthlyEMI,
-      status: "pending",
+    const newLoan = await prisma.medicalLoan.create({
+      data: {
+        patientId: patient.id,
+        hospitalId,
+        treatmentName,
+        requestedAmount: parseFloat(requestedAmount),
+        tenureMonths: parseInt(tenureMonths),
+        monthlyEMI,
+        status: "pending",
+      },
     });
-
-    await newLoan.save();
 
     res.status(201).json({
       success: true,
@@ -58,16 +64,23 @@ export const createLoanRequest = async (req, res) => {
 // Retrieve loans for logged-in user (patient or admin)
 export const getMyLoans = async (req, res) => {
   try {
-    let query = {};
+    let where = {};
     if (req.role === "patient") {
-      query.user = req.userId;
+      const patient = await prisma.patient.findUnique({ where: { userId: req.userId } });
+      if (!patient) {
+        return res.status(404).json({ success: false, message: "Patient not found" });
+      }
+      where.patientId = patient.id;
     } else if (req.role === "admin") {
-      query = {}; // admin sees all
+      where = {}; // admin sees all
     } else {
       return res.status(401).json({ success: false, message: "Unauthorized role" });
     }
 
-    const loans = await MedicalLoan.find(query).sort({ createdAt: -1 });
+    const loans = await prisma.medicalLoan.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+    });
     res.status(200).json({ success: true, data: loans });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

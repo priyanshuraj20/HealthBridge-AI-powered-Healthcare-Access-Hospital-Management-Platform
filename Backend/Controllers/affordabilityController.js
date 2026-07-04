@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import Hospital from "../models/HospitalSchema.js";
+import prisma from "../utils/prismaClient.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.join(__dirname, "../config/schemesConfig.json");
@@ -75,7 +75,10 @@ export const estimateCoverage = async (req, res) => {
   }
 
   try {
-    const hospital = await Hospital.findById(hospitalId);
+    const hospital = await prisma.hospital.findUnique({
+      where: { id: hospitalId },
+      include: { treatmentCosts: true },
+    });
     if (!hospital) {
       return res.status(404).json({ success: false, message: "Hospital not found" });
     }
@@ -99,7 +102,8 @@ export const estimateCoverage = async (req, res) => {
     let note = "No insurance selected. Patient pays full amount.";
 
     // Check if insurance is accepted by this hospital
-    const acceptsInsurance = hospital.supportedInsurances.some(
+    const insurances = (hospital.supportedInsurances || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const acceptsInsurance = insurances.some(
       (ins) => ins.toLowerCase() === (insuranceProvider || "").toLowerCase()
     );
 
@@ -152,7 +156,7 @@ export const predictTreatmentCosts = async (req, res) => {
   }
 
   try {
-    const hospitals = await Hospital.find({});
+    const hospitals = await prisma.hospital.findMany({ include: { treatmentCosts: true } });
     const predictions = hospitals
       .map((h) => {
         const treatment = h.treatmentCosts.find(
@@ -162,7 +166,8 @@ export const predictTreatmentCosts = async (req, res) => {
         if (!treatment) return null;
 
         const totalCost = treatment.cost;
-        const acceptsInsurance = h.supportedInsurances.some(
+        const insurances = (h.supportedInsurances || "").split(",").map((s) => s.trim()).filter(Boolean);
+        const acceptsInsurance = insurances.some(
           (ins) => ins.toLowerCase() === (insuranceProvider || "").toLowerCase()
         );
 

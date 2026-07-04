@@ -2,13 +2,16 @@ import { useState, useEffect, useCallback, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { authContext } from "../context/AuthContext.jsx";
 import { BsArrowRightShort, BsArrowLeft, BsArrowRight } from "react-icons/bs";
+import { BiX } from "react-icons/bi";
 import {
   FaStethoscope, FaFileUpload, FaVideo, FaRobot, FaBell,
   FaShieldAlt, FaHospital, FaMoneyBillWave, FaUserMd,
   FaHeartbeat, FaClipboardList, FaUsers, FaChartLine,
   FaCheckCircle, FaComments
 } from "react-icons/fa";
-import DoctorList from "../components/Doctors/DoctorList";
+import { BASE_URL } from "../config.js";
+import HashLoader from "react-spinners/HashLoader";
+import { t } from "../utils/translate.js";
 import Testimonials from "../components/Testimonials/Testimonials";
 import FaqList from "../components/Faq/FaqList";
 
@@ -177,13 +180,43 @@ export default function Home() {
   const [heroImg, setHeroImg]     = useState(0);
   const [slideIdx, setSlideIdx]   = useState(0);
   const [fadeOn, setFadeOn]       = useState(true);
+  const [hospitals, setHospitals] = useState([]);
+  const [hospitalsLoading, setHospitalsLoading] = useState(false);
+  const [showHospitalPromo, setShowHospitalPromo] = useState(false);
 
-  // Smart navigation: if already logged in, go to dashboard; else go to login
+  useEffect(() => {
+    const promoTimer = setTimeout(() => {
+      setShowHospitalPromo(true);
+    }, 4000);
+    return () => clearTimeout(promoTimer);
+  }, []);
+
+  useEffect(() => {
+    const fetchHospitals = async () => {
+      setHospitalsLoading(true);
+      try {
+        const res = await fetch(`${BASE_URL}/hospitals`);
+        const json = await res.json();
+        if (res.ok) {
+          // Sort by rating desc and pick top 3
+          const sorted = (json.data || []).sort((a, b) => b.rating - a.rating);
+          setHospitals(sorted.slice(0, 3));
+        }
+      } catch (e) {
+        console.error("Error loading hospitals:", e);
+      } finally {
+        setHospitalsLoading(false);
+      }
+    };
+    fetchHospitals();
+  }, []);
+
+  // Smart navigation: if already logged in, go to Telemedicine Hub; else go to login
   const navigateToConsultation = () => {
     if (token && role === "patient") {
-      navigate("/users/profile/me");
+      navigate("/video-call");
     } else if (token && role === "doctor") {
-      navigate("/doctors/profile/me");
+      navigate("/video-call");
     } else {
       navigate("/login");
     }
@@ -271,17 +304,16 @@ export default function Home() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-600"></span>
                 </span>
-                AI-Powered Digital Healthcare Platform
+                {t("AI-Powered Digital Healthcare Platform")}
               </span>
 
               <h1 className="text-[40px] sm:text-[52px] font-[900] leading-[1.1] tracking-tight text-headingColor">
-                From Symptoms to Recovery —{" "}
-                <span className="text-primaryColor">Everything in One Platform</span>
+                {t("From Symptoms to Recovery —")}{" "}
+                <span className="text-primaryColor">{t("Everything in One Platform")}</span>
               </h1>
 
               <p className="text-[15px] leading-[1.9] text-textColor max-w-[560px]">
-                Find doctors, compare treatment costs, check insurance eligibility, book video consultations,
-                upload reports, receive AI-powered medical summaries, and manage your family's health from one secure platform.
+                {t("Find hospitals, compare treatment costs, check insurance eligibility, book video consultations, upload reports, receive AI-powered medical summaries, and manage your family's health from one secure platform.")}
               </p>
 
               <div className="flex flex-wrap gap-3">
@@ -289,19 +321,19 @@ export default function Home() {
                   onClick={() => navigate("/doctors")}
                   className="bg-primaryColor hover:bg-teal-700 text-white font-bold text-sm px-8 py-3.5 rounded-xl shadow-lg shadow-teal-600/20 transition-all flex items-center gap-2"
                 >
-                  Find a Doctor <BsArrowRightShort size={18} />
+                  {t("Find a Hospital")} <BsArrowRightShort size={18} />
                 </button>
                 <button
                   onClick={() => navigate("/ai-guides")}
                   className="bg-white hover:bg-gray-50 border border-gray-200 text-headingColor font-bold text-sm px-8 py-3.5 rounded-xl shadow-sm transition-all flex items-center gap-2"
                 >
-                  <FaRobot className="text-primaryColor" /> Talk to AI
+                  <FaRobot className="text-primaryColor" /> {t("Talk to AI")}
                 </button>
               </div>
 
               {/* Stats */}
               <div className="grid grid-cols-3 gap-3 max-w-[480px] pt-2">
-                {[["24/7","Live Bed Monitoring"],["100%","Ayushman Bharat"],["8+","AI-Powered Tools"]].map(([v, l]) => (
+                {[[t("24/7"), t("Live Bed Monitoring")],[t("100%"), t("Ayushman Bharat")],[t("8+"), t("AI-Powered Tools")]].map(([v, l]) => (
                   <div key={l} className="bg-white border border-gray-200 shadow-sm rounded-2xl p-4 text-center">
                     <p className="text-[22px] font-[900] text-headingColor">{v}</p>
                     <p className="text-[9px] uppercase font-bold tracking-wider text-textColor mt-1 leading-3">{l}</p>
@@ -375,13 +407,13 @@ export default function Home() {
       <section className="py-20 bg-[#f6fafa] border-t border-gray-100">
         <div className="container max-w-[1240px] mx-auto px-4">
           <div className="text-center max-w-[620px] mx-auto mb-12">
-            <SectionLabel>Section 02 — Doctor & Hospital Discovery</SectionLabel>
+            <SectionLabel>Section 02 — Partner Hospital Discovery</SectionLabel>
             <h2 className="text-3xl md:text-4xl font-extrabold text-headingColor leading-tight">
-              Find the Right Doctor,{" "}
-              <span className="text-primaryColor">with Full Transparency.</span>
+              Discover Our Verified{" "}
+              <span className="text-primaryColor">Partner Hospitals.</span>
             </h2>
             <p className="text-sm text-textColor mt-4 leading-7">
-              Real-time ICU availability, insurance acceptance, live wait times, verified reviews, and transparent fees — before you book.
+              Browse top clinical branches, verify cashless insurance network acceptance, monitor live ICU beds, and compare treatment estimates before booking.
             </p>
           </div>
 
@@ -393,11 +425,82 @@ export default function Home() {
             ))}
           </div>
 
-          <DoctorList />
+          {hospitalsLoading ? (
+            <div className="flex justify-center items-center py-20">
+              <HashLoader color="#0d9488" size={40} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {hospitals.map((h) => {
+                const specialtiesArr = (h.specialties || "").split(",").map(s => s.trim()).filter(Boolean);
+                const imgUrl = h.photoUrl || "https://res.cloudinary.com/dnb4jcioy/image/upload/v1782951550/famous_hospital_building.jpg";
+
+                return (
+                  <div
+                    key={h.id}
+                    onClick={() => navigate(`/doctors/${h.id}`)}
+                    className="bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer flex flex-col justify-between group h-full"
+                  >
+                    <div>
+                      {/* Image */}
+                      <div className="h-44 w-full relative bg-gray-100 overflow-hidden">
+                        <img 
+                          src={imgUrl} 
+                          alt={h.name} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                        <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center text-white">
+                          <span className="text-[10px] font-bold bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm">
+                            🏥 {h.city}
+                          </span>
+                          <span className="bg-amber-400 text-slate-900 text-xs px-2.5 py-0.5 rounded-full font-extrabold flex items-center gap-1">
+                            ⭐ {h.rating}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="p-5 space-y-3.5">
+                        <div>
+                          <h3 className="font-extrabold text-headingColor text-base leading-snug group-hover:text-primaryColor transition-all">
+                            {h.name}
+                          </h3>
+                          <p className="text-xs text-textColor mt-1">
+                            📍 {h.location}
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 bg-gray-50 p-3 rounded-xl border border-gray-100 text-[11px] text-textColor font-medium">
+                          <div>
+                            <span className="text-[9px] uppercase text-gray-400 block font-bold">Live Wait</span>
+                            <span className="font-extrabold text-headingColor">⏱ {h.waitingTime} mins</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] uppercase text-gray-400 block font-bold">Emergency</span>
+                            <span className="font-extrabold text-red-600 uppercase text-[10px]">🚨 24/7 Available</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-5 pb-5 flex flex-wrap gap-1">
+                      {specialtiesArr.slice(0, 3).map((spec, i) => (
+                        <span key={i} className="bg-gray-100 text-headingColor text-[10px] px-2.5 py-1 rounded-md font-semibold">
+                          {spec}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           <div className="text-center mt-10">
             <button onClick={() => navigate("/doctors")} className="border border-primaryColor text-primaryColor font-bold text-sm px-8 py-3.5 rounded-xl hover:bg-primaryColor hover:text-white transition-all inline-flex items-center gap-2">
-              View All Doctors <BsArrowRightShort size={18} />
+              Explore All Hospitals <BsArrowRightShort size={18} />
             </button>
           </div>
         </div>
@@ -708,6 +811,65 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+
+      {/* ══════════════════════════════════════════════
+          HOSPITAL PROMO SLIDE-OUT WIDGET
+      ══════════════════════════════════════════════ */}
+      {showHospitalPromo && (
+        <div
+          className="fixed bottom-6 right-6 z-[999] w-[300px] bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden"
+          style={{ animation: "slideInRight 0.5s ease-out forwards" }}
+        >
+          {/* Header */}
+          <div className="bg-gradient-to-r from-primaryColor to-teal-700 px-5 py-3.5 relative">
+            <button
+              onClick={() => setShowHospitalPromo(false)}
+              className="absolute top-2.5 right-2.5 text-white/70 hover:text-white transition-all"
+            >
+              <BiX size={18} />
+            </button>
+            <p className="text-[9px] font-bold text-teal-200 uppercase tracking-widest">For Hospitals</p>
+            <h4 className="text-white font-extrabold text-sm mt-0.5 leading-snug">
+              Join Our Partner Network
+            </h4>
+          </div>
+
+          {/* Benefits list */}
+          <div className="px-5 py-4 space-y-2.5">
+            {[
+              { icon: "📊", text: "Real-time bed & OPD dashboard" },
+              { icon: "👥", text: "Reach 10,000+ patients monthly" },
+              { icon: "🎥", text: "Built-in video consultations" },
+              { icon: "💰", text: "Transparent cost comparison listings" },
+            ].map((b, i) => (
+              <div key={i} className="flex items-start gap-2.5">
+                <span className="text-sm mt-0.5">{b.icon}</span>
+                <p className="text-[11px] text-textColor font-medium leading-snug">{b.text}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <div className="px-5 pb-4">
+            <button
+              onClick={() => navigate("/signup?role=hospital")}
+              className="w-full bg-primaryColor hover:bg-teal-700 text-white text-xs font-extrabold py-2.5 rounded-xl shadow-sm transition-all"
+            >
+              🏥 Join Our Network →
+            </button>
+            <p className="text-center text-[9px] text-textColor mt-2">Free onboarding · No setup fees</p>
+          </div>
+        </div>
+      )}
+
+      {/* Keyframe for slide-in animation */}
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(120%); opacity: 0; }
+          to   { transform: translateX(0);    opacity: 1; }
+        }
+      `}</style>
 
     </div>
   );

@@ -1,4 +1,4 @@
-﻿import { BASE_URL } from "../../config";
+import { BASE_URL } from "../../config";
 import ErrorComponent from "../../components/Error/Error.jsx";
 import Loader from "../../components/Loader/Loading.jsx";
 import { useEffect, useState } from "react";
@@ -14,22 +14,66 @@ const HOSPITAL_IMAGES = [
   "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=600&q=80"
 ];
 
-const HospitalCard = ({ hospital, index }) => {
+const HospitalCard = ({ hospital, index, userLocation }) => {
   const navigate = useNavigate();
   
+  const CITY_COORDS = {
+    delhi: { lat: 28.7041, lng: 77.1025 },
+    mumbai: { lat: 19.0760, lng: 72.8777 },
+    bangalore: { lat: 12.9716, lng: 77.5946 },
+    bengaluru: { lat: 12.9716, lng: 77.5946 },
+    chennai: { lat: 13.0827, lng: 80.2707 },
+    kolkata: { lat: 22.5726, lng: 88.3639 },
+    hyderabad: { lat: 17.3850, lng: 78.4867 },
+    pune: { lat: 18.5204, lng: 73.8567 },
+    ahmedabad: { lat: 23.0225, lng: 72.5714 },
+    "new york": { lat: 40.7128, lng: -74.0060 },
+    london: { lat: 51.5074, lng: -0.1278 },
+    dubai: { lat: 25.2048, lng: 55.2708 },
+    toronto: { lat: 43.6532, lng: -79.3832 },
+    singapore: { lat: 1.3521, lng: 103.8198 },
+    sydney: { lat: -33.8688, lng: 151.2093 },
+  };
+
+  const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  const getDynamicDistance = () => {
+    if (!userLocation) return hospital.distance;
+    const cityKey = (hospital.city || "").toLowerCase().trim();
+    const coords = CITY_COORDS[cityKey];
+    if (!coords) return hospital.distance;
+    return parseFloat(getHaversineDistance(userLocation.lat, userLocation.lng, coords.lat, coords.lng).toFixed(1));
+  };
+
+  const computedDistance = getDynamicDistance();
+
   // Estimate cost range from treatmentCosts array
   const costs = hospital.treatmentCosts?.map(tc => tc.cost) || [];
   const minCost = costs.length > 0 ? Math.min(...costs) : 500;
   const maxCost = costs.length > 0 ? Math.max(...costs) : 15000;
 
+  // specialties & supportedInsurances arrive as comma-separated strings from the API
+  const specialtiesArr = (hospital.specialties || "").split(",").map(s => s.trim()).filter(Boolean);
+  const insurancesArr = (hospital.supportedInsurances || "").split(",").map(s => s.trim()).filter(Boolean);
+
   // Determine badges
   const isPremium = hospital.rating >= 4.6;
-  const isGovernment = hospital.supportedInsurances?.includes("PM-JAY");
+  const isGovernment = insurancesArr.some(ins => ins.includes("PM-JAY"));
   const imgUrl = HOSPITAL_IMAGES[index % HOSPITAL_IMAGES.length];
 
   return (
-    <div 
-      onClick={() => navigate(`/doctors/${hospital._id}`)}
+    <div
+      onClick={() => navigate(`/doctors/${hospital.id}`)}
       className="bg-white border border-gray-150 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer flex flex-col justify-between group h-full"
     >
       <div>
@@ -90,7 +134,7 @@ const HospitalCard = ({ hospital, index }) => {
             </div>
             <div>
               <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Distance</p>
-              <p className="font-bold text-headingColor mt-0.5">📍 {hospital.distance} km away</p>
+              <p className="font-bold text-headingColor mt-0.5">📍 {computedDistance} km away</p>
             </div>
             <div>
               <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Emergency</p>
@@ -102,7 +146,7 @@ const HospitalCard = ({ hospital, index }) => {
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Supported Insurances</span>
             <div className="flex flex-wrap gap-1">
-              {hospital.supportedInsurances?.slice(0, 3).map((ins, i) => (
+              {insurancesArr.slice(0, 3).map((ins, i) => (
                 <span key={i} className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] px-2 py-0.5 rounded font-semibold">
                   {ins}
                 </span>
@@ -119,7 +163,7 @@ const HospitalCard = ({ hospital, index }) => {
 
       {/* Specialties list at footer */}
       <div className="px-5 pb-5 flex flex-wrap gap-1">
-        {hospital.specialties?.slice(0, 3).map((spec, i) => (
+        {specialtiesArr.slice(0, 3).map((spec, i) => (
           <span key={i} className="bg-gray-100 border text-headingColor text-[10px] px-2.5 py-1 rounded-md font-semibold">
             {spec}
           </span>
@@ -144,6 +188,23 @@ const Doctors = () => {
   const [hospitalsList, setHospitalsList] = useState([]);
   const [fetchLoading, setFetchLoading] = useState(false);
   const [fetchError, setFetchError] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.log("Geolocation error:", error);
+        }
+      );
+    }
+  }, []);
 
   useEffect(() => {
     const timeOut = setTimeout(() => {
@@ -319,9 +380,53 @@ const Doctors = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {hospitalsList.map((h, i) => (
-                    <HospitalCard hospital={h} index={i} key={h._id} />
-                  ))}
+                  {(() => {
+                    const CITY_COORDS = {
+                      delhi: { lat: 28.7041, lng: 77.1025 },
+                      mumbai: { lat: 19.0760, lng: 72.8777 },
+                      bangalore: { lat: 12.9716, lng: 77.5946 },
+                      bengaluru: { lat: 12.9716, lng: 77.5946 },
+                      chennai: { lat: 13.0827, lng: 80.2707 },
+                      kolkata: { lat: 22.5726, lng: 88.3639 },
+                      hyderabad: { lat: 17.3850, lng: 78.4867 },
+                      pune: { lat: 18.5204, lng: 73.8567 },
+                      ahmedabad: { lat: 23.0225, lng: 72.5714 },
+                      "new york": { lat: 40.7128, lng: -74.0060 },
+                      london: { lat: 51.5074, lng: -0.1278 },
+                      dubai: { lat: 25.2048, lng: 55.2708 },
+                      toronto: { lat: 43.6532, lng: -79.3832 },
+                      singapore: { lat: 1.3521, lng: 103.8198 },
+                      sydney: { lat: -33.8688, lng: 151.2093 },
+                    };
+
+                    const getHaversine = (lat1, lon1, lat2, lon2) => {
+                      const R = 6371; // km
+                      const dLat = (lat2 - lat1) * Math.PI / 180;
+                      const dLon = (lon2 - lon1) * Math.PI / 180;
+                      const a = 
+                        Math.sin(dLat/2) * Math.sin(dLat/2) +
+                        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                        Math.sin(dLon/2) * Math.sin(dLon/2);
+                      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                      return R * c;
+                    };
+
+                    const sortedList = [...hospitalsList].map(h => {
+                      let dist = h.distance;
+                      if (userLocation) {
+                        const cityKey = (h.city || "").toLowerCase().trim();
+                        const coords = CITY_COORDS[cityKey];
+                        if (coords) {
+                          dist = parseFloat(getHaversine(userLocation.lat, userLocation.lng, coords.lat, coords.lng).toFixed(1));
+                        }
+                      }
+                      return { ...h, tempDistance: dist };
+                    }).sort((a, b) => a.tempDistance - b.tempDistance);
+
+                    return sortedList.map((h, i) => (
+                      <HospitalCard hospital={h} index={i} key={h.id} userLocation={userLocation} />
+                    ));
+                  })()}
                 </div>
               )}
             </>

@@ -1,18 +1,56 @@
-import Doctor from "../models/DoctorSchema.js";
-import Booking from "../models/BookingSchema.js";
-import Review from "../models/ReviewSchema.js";
+import prisma from "../utils/prismaClient.js";
+
+const TELEMEDICINE_SPECIALTIES = [
+  "General Physician", "Psychiatry", "Follow-up Care", "Pediatrics",
+  "General Medicine", "Psychiatry/Mental Health", "Pediatric Consults"
+];
+
+// Strip the password hash before returning a doctor object and map slots to timeSlots
+const stripPassword = (doctor) => {
+  if (!doctor) return doctor;
+  const { passwordHash, ...rest } = doctor;
+  
+  // Format database slots to timeSlots for Mongoose frontend compatibility
+  const timeSlots = (doctor.slots && doctor.slots.length > 0)
+    ? doctor.slots.map(s => ({
+        day: s.dayOfWeek,
+        startingTime: s.startTime,
+        endingTime: s.endTime
+      }))
+    : [
+        { day: "Monday", startingTime: "09:00", endingTime: "10:30" },
+        { day: "Wednesday", startingTime: "14:00", endingTime: "15:30" },
+        { day: "Friday", startingTime: "10:00", endingTime: "11:30" }
+      ];
+      
+  return { ...rest, timeSlots };
+};
 
 export const updateDoctor = async (req, res) => {
   const id = req.params.id;
   try {
     const body = { ...req.body };
+
+    // Map legacy field names onto the Prisma schema
+    if (body.ticketPrice !== undefined) {
+      body.offlinePrice = body.ticketPrice;
+      delete body.ticketPrice;
+    }
+    if (body.photo !== undefined) {
+      body.photoUrl = body.photo;
+      delete body.photo;
+    }
+    // Never allow direct password/relation writes through this endpoint
+    delete body.password;
+    delete body.passwordHash;
+    delete body.reviews;
+    delete body.appointments;
+    delete body.hospital;
+
     if (body.isTelemedicine !== undefined) {
-      const TELEMEDICINE_SPECIALTIES = [
-        "General Physician", "Psychiatry", "Follow-up Care", "Pediatrics", 
-        "General Medicine", "Psychiatry/Mental Health", "Pediatric Consults"
-      ];
-      const spec = body.specialization || (await Doctor.findById(id))?.specialization || "";
-      const acceptsTelemedicine = TELEMEDICINE_SPECIALTIES.some(s => 
+      const current = await prisma.doctor.findUnique({ where: { id } });
+      const spec = body.specialization || current?.specialization || "";
+      const acceptsTelemedicine = TELEMEDICINE_SPECIALTIES.some(s =>
         spec.toLowerCase().includes(s.toLowerCase())
       );
       if (!acceptsTelemedicine) {
@@ -20,18 +58,12 @@ export const updateDoctor = async (req, res) => {
       }
     }
 
-    const updatedDoctor = await Doctor.findByIdAndUpdate(
-      id,
-      { $set: body },
-      { new: true, select: "-password" }
-    );
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Successfully Updated",
-        data: updatedDoctor,
-      });
+    const updatedDoctor = await prisma.doctor.update({ where: { id }, data: body });
+    res.status(200).json({
+      success: true,
+      message: "Successfully Updated",
+      data: stripPassword(updatedDoctor),
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to update" });
   }
@@ -40,14 +72,9 @@ export const updateDoctor = async (req, res) => {
 export const deleteDoctor = async (req, res) => {
   const id = req.params.id || req.userId;
   try {
-    // Delete doctor's bookings first
-    await Booking.deleteMany({ doctor: id });
-
-    //delete doctor's review
-    await Review.deleteMany({ doctor: id });
-
-    const deletedDoctor = await Doctor.findByIdAndDelete(id);
-    res.status(200).json({ success: true, message: "Successfully Deleted", data: deletedDoctor});
+    // Related bookings & reviews are removed automatically via onDelete: Cascade
+    const deletedDoctor = await prisma.doctor.delete({ where: { id } });
+    res.status(200).json({ success: true, message: "Successfully Deleted", data: stripPassword(deletedDoctor) });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to delete" });
   }
@@ -56,12 +83,14 @@ export const deleteDoctor = async (req, res) => {
 export const getSingleDoctor = async (req, res) => {
   const id = req.params.id;
   try {
-    const doctor = await Doctor.findById(id)
-      .populate("reviews")
-      .select("-password");
-    res
-      .status(200)
-      .json({ success: true, message: "Doctor found", data: doctor });
+    const doctor = await prisma.doctor.findUnique({
+      where: { id },
+      include: { 
+        slots: true, 
+        reviews: { include: { patient: { select: { name: true } } } } 
+      }
+    });
+    res.status(200).json({ success: true, message: "Doctor found", data: stripPassword(doctor) });
   } catch (err) {
     res.status(500).json({ success: false, message: "Doctor not found" });
   }
@@ -69,78 +98,66 @@ export const getSingleDoctor = async (req, res) => {
 
 export const getAll = async (req, res) => {
   try {
-    const doctors = await Doctor.find({}).select("-password");
+    const doctors = await prisma.doctor.findMany({ include: { slots: true } });
 
     if (!doctors.length) {
       return res.status(200).json({ success: true, message: "No doctors found" });
     }
 
-    res.status(200).json({ success: true, message: "Doctors found", data: doctors });
+    res.status(200).json({ success: true, message: "Doctors found", data: doctors.map(stripPassword) });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error", error: err.message });
   }
 };
 
-// Controller function to get all doctors
+// Get all doctors with filtering, search, sorting & pagination
 export const getAllDoctors = async (req, res) => {
   try {
-    const { query, specialization, department, gender, minFee, maxFee, sortBy, page, limit, hospital } = req.query;
+    const { query, specialization, department, minFee, maxFee, sortBy, page, limit, hospital } = req.query;
 
-    let filter = { isApproved: "approved" };
+    const where = { isApproved: "approved" };
 
     if (hospital) {
-      filter.hospital = hospital;
+      where.hospitalId = hospital;
     }
 
     if (query) {
-      filter.$or = [
-        { name: new RegExp(query, "i") },
-        { specialization: new RegExp(query, "i") },
-        { department: new RegExp(query, "i") }
+      where.OR = [
+        { name: { contains: query, mode: "insensitive" } },
+        { specialization: { contains: query, mode: "insensitive" } },
       ];
     }
 
-    if (specialization) {
-      filter.specialization = new RegExp(specialization, "i");
-    }
-    if (department) {
-      filter.department = new RegExp(department, "i");
-    }
-    if (gender) {
-      filter.gender = gender;
-    }
-    if (minFee || maxFee) {
-      filter.ticketPrice = {};
-      if (minFee) filter.ticketPrice.$gte = parseFloat(minFee);
-      if (maxFee) filter.ticketPrice.$lte = parseFloat(maxFee);
+    // department is not a distinct column in the new schema — treat it like specialization
+    const specTerm = specialization || department;
+    if (specTerm) {
+      where.specialization = { contains: specTerm, mode: "insensitive" };
     }
 
-    let sortObj = {};
-    if (sortBy === "priceAsc") {
-      sortObj.ticketPrice = 1;
-    } else if (sortBy === "priceDesc") {
-      sortObj.ticketPrice = -1;
-    } else if (sortBy === "rating") {
-      sortObj.averageRating = -1;
-    } else {
-      sortObj.createdAt = -1;
+    if (minFee || maxFee) {
+      where.offlinePrice = {};
+      if (minFee) where.offlinePrice.gte = parseFloat(minFee);
+      if (maxFee) where.offlinePrice.lte = parseFloat(maxFee);
     }
+
+    let orderBy = { createdAt: "desc" };
+    if (sortBy === "priceAsc") orderBy = { offlinePrice: "asc" };
+    else if (sortBy === "priceDesc") orderBy = { offlinePrice: "desc" };
+    else if (sortBy === "rating") orderBy = { rating: "desc" };
 
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 8;
     const skipNum = (pageNum - 1) * limitNum;
 
-    const total = await Doctor.countDocuments(filter);
-    const doctors = await Doctor.find(filter)
-      .select("-password")
-      .sort(sortObj)
-      .skip(skipNum)
-      .limit(limitNum);
+    const [total, doctors] = await Promise.all([
+      prisma.doctor.count({ where }),
+      prisma.doctor.findMany({ where, orderBy, skip: skipNum, take: limitNum, include: { slots: true } })
+    ]);
 
     res.status(200).json({
       success: true,
       message: "Doctors found",
-      data: doctors,
+      data: doctors.map(stripPassword),
       pagination: {
         total,
         page: pageNum,
@@ -155,34 +172,30 @@ export const getAllDoctors = async (req, res) => {
 
 export const getDoctorProfile = async (req, res) => {
   const doctorId = req.userId;
-  //console.log("Doctor ID:", doctorId);  // Debugging statement
   try {
-    const doctor = await Doctor.findById(doctorId);
+    const doctor = await prisma.doctor.findUnique({ where: { id: doctorId }, include: { slots: true } });
     if (!doctor) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Doctor not found" });
+      return res.status(404).json({ success: false, message: "Doctor not found" });
     }
-    const { password, ...doctorData } = doctor._doc;
-    const appointments = await Booking.find({ doctor: doctorId }).sort({ appointmentDate: 1, "timeSlot.startingTime": 1 });
+
+    const appointments = await prisma.appointment.findMany({
+      where: { doctorId },
+      include: { patient: { select: { name: true } } },
+      orderBy: { createdAt: "asc" }
+    });
 
     const responseData = {
-      ...doctorData,
-      appointments: appointments
+      ...stripPassword(doctor),
+      appointments
     };
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Getting Profile Info",
-        data: responseData,
-      });
+    res.status(200).json({
+      success: true,
+      message: "Getting Profile Info",
+      data: responseData,
+    });
   } catch (err) {
-    // Debugging statement
-    res
-      .status(500)
-      .json({ success: false, message: "Something went wrong" });
+    res.status(500).json({ success: false, message: "Something went wrong" });
   }
 };
 
@@ -191,18 +204,16 @@ export const updateDoctorStatus = async (req, res) => {
     const { doctorId } = req.params;
     const { isApproved } = req.body;
 
-    const updatedDoctor = await Doctor.findByIdAndUpdate(
-      doctorId,
-      { isApproved },
-      { new: true } 
-    ).select("-password");
+    const updatedDoctor = await prisma.doctor.update({
+      where: { id: doctorId },
+      data: { isApproved }
+    });
 
-    if (!updatedDoctor) {
+    res.status(200).json({ success: true, message: "Doctor status updated", data: stripPassword(updatedDoctor) });
+  } catch (err) {
+    if (err.code === "P2025") {
       return res.status(404).json({ success: false, message: "Doctor not found" });
     }
-
-    res.status(200).json({ success: true, message: "Doctor status updated", data: updatedDoctor });
-  } catch (err) {
     res.status(500).json({ success: false, message: "Server error", error: err.message });
   }
 };

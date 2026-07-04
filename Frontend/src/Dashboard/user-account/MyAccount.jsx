@@ -1,6 +1,6 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { authContext } from "../../context/AuthContext.jsx";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import MyBookings from "./MyBookings.jsx";
 import ProfileSettings from "./ProfileSettings.jsx";
@@ -18,14 +18,43 @@ import Error from "../../components/Error/Error.jsx";
 import userPlaceholder from "../../assets/images/defaultUser.jpg";
 
 const UserAccount = () => {
-  const [tab, setTab] = useState("homepage");
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const [tab, setTab] = useState(queryParams.get("tab") || "homepage");
   const { dispatch } = useContext(authContext);
 
+  useEffect(() => {
+    const tabParam = new URLSearchParams(location.search).get("tab");
+    if (tabParam) {
+      setTab(tabParam);
+    }
+  }, [location]);
+
   const {
-    data: userData,
+    data: rawUser,
     loading,
     error,
   } = useGetProfile(`${BASE_URL}/users/profile/me`);
+
+  // The API returns a User with a nested `patient` profile. Flatten it into a
+  // single object the dashboard tabs can read, keeping the User id for updates
+  // and mapping the normalized Ayushman columns back to the shape the UI uses.
+  const patient = rawUser?.patient || {};
+  const userData = rawUser
+    ? {
+        ...patient,
+        id: rawUser.id,
+        email: rawUser.email,
+        role: rawUser.role,
+        name: patient.name || rawUser.organization?.name || "",
+        familyMembers: patient.familyMembers || [],
+        ayushmanCard: {
+          cardNumber: patient.ayushmanCardNo || "",
+          holderName: patient.ayushmanName || "",
+          status: patient.ayushmanStatus || "Unverified",
+        },
+      }
+    : null;
 
   const navigate = useNavigate();
 

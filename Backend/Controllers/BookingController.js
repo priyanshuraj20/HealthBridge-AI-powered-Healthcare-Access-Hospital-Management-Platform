@@ -1,8 +1,4 @@
-import User from "../models/UserSchema.js";
-import Doctor from "../models/DoctorSchema.js";
-import Booking from "../models/BookingSchema.js";
-import Meeting from "../models/MeetingSchema.js";
-import MedicalRecord from "../models/MedicalRecordSchema.js";
+import prisma from "../utils/prismaClient.js";
 import Stripe from "stripe";
 import jwt from "jsonwebtoken";
 import { getOpenRouterResponse } from "./aiController.js";
@@ -12,25 +8,38 @@ import {
   sendCancellationNotification,
 } from "../utils/notificationService.js";
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// Build a notification-friendly "user" object ({ name, email }) from an Appointment
+// that has its patient (and the patient's login user) included.
+const patientContact = (patient) => ({
+  name: patient?.name || "Patient",
+  email: patient?.user?.email || "",
+  phone: patient?.phone || "",
+});
+
+const appointmentInclude = {
+  patient: { include: { user: true } },
+  doctor: true,
+};
+
 // ─── VideoSDK helpers ───────────────────────────────────────────────────────
 const VIDEOSDK_API_KEY = process.env.VIDEOSDK_API_KEY;
 const VIDEOSDK_SECRET  = process.env.VIDEOSDK_SECRET || "";
 
 /** Generate a VideoSDK participant token using JWT (no secret needed for API-key auth) */
 const generateVideoSDKToken = (participantId, roomId) => {
-  // VideoSDK v2 uses API-key based auth — token payload
   const payload = {
     apikey: VIDEOSDK_API_KEY,
     permissions: ["allow_join", "allow_mod"],
     version: 2,
     roomId,
     participantId,
+    roles: ["rtc"],
   };
-  // If a secret is configured, sign it; otherwise use the API key as a bearer token
   if (VIDEOSDK_SECRET) {
     return jwt.sign(payload, VIDEOSDK_SECRET, { expiresIn: "4h", algorithm: "HS256" });
   }
-  // Fallback: use API key directly (VideoSDK supports this for dev)
   return VIDEOSDK_API_KEY;
 };
 
@@ -65,23 +74,27 @@ export const getCheckOutSession = async (req, res) => {
   }
 
   try {
-    const doctor = await Doctor.findById(req.params.doctorId);
-    const user = await User.findById(req.userId);
+    const doctor = await prisma.doctor.findUnique({ where: { id: req.params.doctorId } });
+    const user = await prisma.user.findUnique({ where: { id: req.userId }, include: { patient: true } });
 
     if (!doctor) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Doctor not found" });
+      return res.status(404).json({ success: false, message: "Doctor not found" });
+    }
+    if (!user || !user.patient) {
+      return res.status(404).json({ success: false, message: "Patient profile not found" });
     }
 
-    // Double booking check: same doctor, same date, same starting time
-    const existingBooking = await Booking.findOne({
-      doctor: doctor._id,
-      appointmentDate,
-      "timeSlot.day": timeSlot.day,
-      "timeSlot.startingTime": timeSlot.startingTime,
-      status: { $in: ["pending", "confirmed", "approved", "rescheduled"] },
+    // Double booking check: same doctor, same date, same starting time (timeSlot is JSON)
+    const sameDayBookings = await prisma.appointment.findMany({
+      where: {
+        doctorId: doctor.id,
+        appointmentDate,
+        status: { in: ["pending", "confirmed", "approved", "rescheduled"] },
+      },
     });
+    const existingBooking = sameDayBookings.find(
+      (b) => b.timeSlot?.day === timeSlot.day && b.timeSlot?.startingTime === timeSlot.startingTime
+    );
 
     if (existingBooking) {
       return res.status(400).json({
@@ -90,30 +103,35 @@ export const getCheckOutSession = async (req, res) => {
       });
     }
 
-    const booking = new Booking({
-      doctor: doctor._id,
-      user: user._id,
-      ticketPrice: doctor.ticketPrice,
-      appointmentDate,
-      timeSlot,
-      symptoms: symptoms || "",
-      status: "pending",
-      isPaid: false,
-      consultationType: consultationType || "physical",
-      meetingRoom: consultationType === "video-instant" ? `healthbridge-room-${Math.floor(100000 + Math.random() * 900000)}` : "",
+    const isVideo = (consultationType || "").startsWith("video");
+    const booking = await prisma.appointment.create({
+      data: {
+        doctorId: doctor.id,
+        patientId: user.patient.id,
+        hospitalId: doctor.hospitalId,
+        price: isVideo ? (doctor.onlinePrice || doctor.offlinePrice) : doctor.offlinePrice,
+        appointmentDate,
+        timeSlot,
+        symptoms: symptoms || "",
+        status: "pending",
+        isPaid: false,
+        paymentStatus: "pending",
+        mode: isVideo ? "online" : "offline",
+        consultationType: consultationType || "physical",
+        meetingRoom: consultationType === "video-instant" ? `healthbridge-room-${Math.floor(100000 + Math.random() * 900000)}` : "",
+      },
     });
-    await booking.save();
 
     // Send a booking notification (pending)
     try {
-      await sendBookingNotification(booking, user, doctor);
+      await sendBookingNotification(booking, patientContact(user.patient), doctor);
     } catch (e) {
       console.log("Email notification error:", e.message);
     }
 
     // Redirect to Razorpay Payment Page with prefilled query parameters
-    const paymentUrl = `https://rzp.io/rzp/mnqpYBYv?email=${user.email}&phone=${user.phone || ''}&booking_id=${booking._id}&doctor_name=${encodeURIComponent(doctor.name)}&patient_name=${encodeURIComponent(user.name)}`;
-    
+    const paymentUrl = `https://rzp.io/rzp/mnqpYBYv?email=${user.email}&phone=${user.patient.phone || ''}&booking_id=${booking.id}&doctor_name=${encodeURIComponent(doctor.name)}&patient_name=${encodeURIComponent(user.patient.name)}`;
+
     res.status(200).json({
       success: true,
       message: "Booking initiated, redirecting to secure payment page",
@@ -131,18 +149,15 @@ export const verifyBooking = async (req, res) => {
   const { bookingId, success } = req.body;
   try {
     if (success === "true") {
-      const booking = await Booking.findByIdAndUpdate(
-        bookingId,
-        {
-          isPaid: true,
-          status: "confirmed",
-        },
-        { new: true }
-      ).populate("user").populate("doctor");
+      const booking = await prisma.appointment.update({
+        where: { id: bookingId },
+        data: { isPaid: true, status: "confirmed", paymentStatus: "paid" },
+        include: appointmentInclude,
+      });
 
-      if (booking && booking.user && booking.doctor) {
+      if (booking && booking.patient && booking.doctor) {
         try {
-          await sendConfirmationNotification(booking, booking.user, booking.doctor);
+          await sendConfirmationNotification(booking, patientContact(booking.patient), booking.doctor);
         } catch (e) {
           console.log("Email notification error:", e.message);
         }
@@ -150,7 +165,7 @@ export const verifyBooking = async (req, res) => {
 
       res.status(200).json({ success: true, message: "Paid" });
     } else {
-      await Booking.findByIdAndDelete(bookingId);
+      await prisma.appointment.delete({ where: { id: bookingId } });
       res.status(200).json({ success: false, message: "Not paid" });
     }
   } catch (error) {
@@ -160,7 +175,7 @@ export const verifyBooking = async (req, res) => {
 
 export const getAllAppointments = async (req, res) => {
   try {
-    const appointments = await Booking.find({});
+    const appointments = await prisma.appointment.findMany({ include: appointmentInclude });
     res.status(200).json({
       success: true,
       data: appointments,
@@ -192,26 +207,21 @@ export const updateStatus = async (req, res) => {
       return res.status(400).json({ message: "Invalid status value" });
     }
 
-    const appointment = await Booking.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true }
-    ).populate("user").populate("doctor");
+    const appointment = await prisma.appointment.update({
+      where: { id },
+      data: { status },
+      include: appointmentInclude,
+    });
 
-    if (!appointment) {
-      return res.status(404).json({ message: "Appointment not found" });
-    }
-
-    // If cancelled, send cancellation email
-    if (status === "cancelled" && appointment.user && appointment.doctor) {
+    if (status === "cancelled" && appointment.patient && appointment.doctor) {
       try {
-        await sendCancellationNotification(appointment, appointment.user, appointment.doctor, "doctor");
+        await sendCancellationNotification(appointment, patientContact(appointment.patient), appointment.doctor, "doctor");
       } catch (e) {
         console.log("Email notification error:", e.message);
       }
-    } else if (status === "confirmed" && appointment.user && appointment.doctor) {
+    } else if (status === "confirmed" && appointment.patient && appointment.doctor) {
       try {
-        await sendConfirmationNotification(appointment, appointment.user, appointment.doctor);
+        await sendConfirmationNotification(appointment, patientContact(appointment.patient), appointment.doctor);
       } catch (e) {
         console.log("Email notification error:", e.message);
       }
@@ -219,6 +229,9 @@ export const updateStatus = async (req, res) => {
 
     res.status(200).json({ success: true, data: appointment });
   } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
     console.error("Error updating status:", error);
     res.status(500).json({ message: "Server error" });
   }
@@ -236,22 +249,23 @@ export const rescheduleBooking = async (req, res) => {
   }
 
   try {
-    const booking = await Booking.findById(id);
+    const booking = await prisma.appointment.findUnique({ where: { id } });
     if (!booking) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Appointment not found." });
+      return res.status(404).json({ success: false, message: "Appointment not found." });
     }
 
     // Check if duplicate booked slot exists
-    const duplicate = await Booking.findOne({
-      _id: { $ne: id },
-      doctor: booking.doctor,
-      appointmentDate,
-      "timeSlot.day": timeSlot.day,
-      "timeSlot.startingTime": timeSlot.startingTime,
-      status: { $in: ["pending", "confirmed", "approved", "rescheduled"] },
+    const candidates = await prisma.appointment.findMany({
+      where: {
+        id: { not: id },
+        doctorId: booking.doctorId,
+        appointmentDate,
+        status: { in: ["pending", "confirmed", "approved", "rescheduled"] },
+      },
     });
+    const duplicate = candidates.find(
+      (b) => b.timeSlot?.day === timeSlot.day && b.timeSlot?.startingTime === timeSlot.startingTime
+    );
 
     if (duplicate) {
       return res.status(400).json({
@@ -260,15 +274,15 @@ export const rescheduleBooking = async (req, res) => {
       });
     }
 
-    booking.appointmentDate = appointmentDate;
-    booking.timeSlot = timeSlot;
-    booking.status = "rescheduled";
-    await booking.save();
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: { appointmentDate, timeSlot, status: "rescheduled" },
+    });
 
     res.status(200).json({
       success: true,
       message: "Appointment rescheduled successfully.",
-      data: booking,
+      data: updated,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -278,20 +292,20 @@ export const rescheduleBooking = async (req, res) => {
 export const cancelBooking = async (req, res) => {
   const { id } = req.params;
   try {
-    const booking = await Booking.findById(id);
+    const booking = await prisma.appointment.findUnique({ where: { id } });
     if (!booking) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Appointment not found." });
+      return res.status(404).json({ success: false, message: "Appointment not found." });
     }
 
-    booking.status = "cancelled";
-    await booking.save();
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: { status: "cancelled" },
+      include: appointmentInclude,
+    });
 
-    const populated = await Booking.findById(id).populate("user").populate("doctor");
-    if (populated && populated.user && populated.doctor) {
+    if (updated && updated.patient && updated.doctor) {
       try {
-        await sendCancellationNotification(populated, populated.user, populated.doctor, "patient");
+        await sendCancellationNotification(updated, patientContact(updated.patient), updated.doctor, "patient");
       } catch (e) {
         console.log("Email notification error:", e.message);
       }
@@ -300,7 +314,7 @@ export const cancelBooking = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Appointment cancelled successfully.",
-      data: booking,
+      data: updated,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -319,19 +333,20 @@ export const prescribeTests = async (req, res) => {
   }
 
   try {
-    const booking = await Booking.findById(id);
+    const booking = await prisma.appointment.findUnique({ where: { id } });
     if (!booking) {
       return res.status(404).json({ success: false, message: "Appointment not found." });
     }
 
-    booking.prescribedTests = tests;
-    // Set expiry for followup: 10 days from today (since tests are being prescribed today)
+    // Set expiry for followup: 10 days from today
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 10);
-    booking.followupExpiry = expiryDate;
-    
-    await booking.save();
-    res.status(200).json({ success: true, message: "Lab tests prescribed successfully.", data: booking });
+
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: { prescribedTests: tests, followupExpiry: expiryDate },
+    });
+    res.status(200).json({ success: true, message: "Lab tests prescribed successfully.", data: updated });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -347,28 +362,34 @@ export const uploadReports = async (req, res) => {
   }
 
   try {
-    const booking = await Booking.findById(id);
+    const booking = await prisma.appointment.findUnique({ where: { id } });
     if (!booking) {
       return res.status(404).json({ success: false, message: "Appointment not found." });
     }
 
-    booking.uploadedReports.push({ name, fileUrl, date: new Date() });
-    await booking.save();
+    const uploadedReports = Array.isArray(booking.uploadedReports) ? booking.uploadedReports : [];
+    uploadedReports.push({ name, fileUrl, date: new Date().toISOString() });
 
-    // Create the global MedicalRecord for the patient
-    const newRecord = new MedicalRecord({
-      patient: booking.user,
-      title: name,
-      recordType: "Report",
-      fileUrl: fileUrl,
-      uploadedBy: {
-        role: req.role || "lab_tech",
-        userId: req.userId || booking.user
-      }
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: { uploadedReports },
     });
-    await newRecord.save();
 
-    res.status(200).json({ success: true, message: "Report uploaded successfully.", data: booking });
+    // Also create a global medical report record for the patient
+    try {
+      await prisma.report.create({
+        data: {
+          patientId: booking.patientId,
+          appointmentId: booking.id,
+          title: name,
+          fileUrl,
+        },
+      });
+    } catch (e) {
+      console.log("Report record creation error:", e.message);
+    }
+
+    res.status(200).json({ success: true, message: "Report uploaded successfully.", data: updated });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -384,7 +405,7 @@ export const scheduleFollowup = async (req, res) => {
   }
 
   try {
-    const originalBooking = await Booking.findById(id);
+    const originalBooking = await prisma.appointment.findUnique({ where: { id } });
     if (!originalBooking) {
       return res.status(404).json({ success: false, message: "Original physical appointment not found." });
     }
@@ -397,7 +418,8 @@ export const scheduleFollowup = async (req, res) => {
     }
 
     const today = new Date();
-    const expiry = originalBooking.followupExpiry || new Date(new Date(originalBooking.appointmentDate).getTime() + 10 * 24 * 60 * 60 * 1000);
+    const baseDate = originalBooking.appointmentDate ? new Date(originalBooking.appointmentDate) : today;
+    const expiry = originalBooking.followupExpiry || new Date(baseDate.getTime() + 10 * 24 * 60 * 60 * 1000);
     if (today > expiry) {
       return res.status(400).json({
         success: false,
@@ -405,22 +427,26 @@ export const scheduleFollowup = async (req, res) => {
       });
     }
 
-    if (originalBooking.uploadedReports.length === 0) {
+    const uploadedReports = Array.isArray(originalBooking.uploadedReports) ? originalBooking.uploadedReports : [];
+    if (uploadedReports.length === 0) {
       return res.status(400).json({
         success: false,
         message: "Please upload your lab reports first before scheduling the follow-up consultation."
       });
     }
 
-    const duplicate = await Booking.findOne({
-      user: req.userId,
-      doctor: originalBooking.doctor._id,
-      consultationType: "video-followup",
-      appointmentDate,
-      "timeSlot.day": timeSlot.day,
-      "timeSlot.startingTime": timeSlot.startingTime,
-      status: { $ne: "cancelled" }
+    const candidates = await prisma.appointment.findMany({
+      where: {
+        patientId: originalBooking.patientId,
+        doctorId: originalBooking.doctorId,
+        consultationType: "video-followup",
+        appointmentDate,
+        status: { not: "cancelled" },
+      },
     });
+    const duplicate = candidates.find(
+      (b) => b.timeSlot?.day === timeSlot.day && b.timeSlot?.startingTime === timeSlot.startingTime
+    );
 
     if (duplicate) {
       return res.status(400).json({
@@ -429,37 +455,66 @@ export const scheduleFollowup = async (req, res) => {
       });
     }
 
-    const roomName = `healthbridge-followup-${originalBooking._id.toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const roomName = `healthbridge-followup-${originalBooking.id.slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const followupBooking = new Booking({
-      doctor: originalBooking.doctor._id,
-      user: originalBooking.user._id,
-      ticketPrice: 0,
-      appointmentDate,
-      timeSlot,
-      symptoms: "Free Follow-up: Lab Report Review",
-      consultationType: "video-followup",
-      meetingRoom: roomName,
-      isPaid: true,
-      status: "confirmed"
+    const followupBooking = await prisma.appointment.create({
+      data: {
+        doctorId: originalBooking.doctorId,
+        patientId: originalBooking.patientId,
+        hospitalId: originalBooking.hospitalId,
+        price: 0,
+        appointmentDate,
+        timeSlot,
+        symptoms: "Free Follow-up: Lab Report Review",
+        consultationType: "video-followup",
+        mode: "online",
+        meetingRoom: roomName,
+        isPaid: true,
+        paymentStatus: "paid",
+        status: "confirmed",
+      },
     });
 
-    await followupBooking.save();
     res.status(200).json({ success: true, message: "Free follow-up consultation scheduled successfully.", data: followupBooking });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// 4. Book Instant Video Consultation (₹199)
 export const bookInstant = async (req, res) => {
-  const { symptoms } = req.body;
+  const { symptoms, specialty } = req.body;
   if (!symptoms) {
     return res.status(400).json({ success: false, message: "Symptoms description is required." });
   }
 
   try {
-    const doctor = await Doctor.findOne({ isApproved: "approved" });
+    const patient = await prisma.patient.findUnique({ where: { userId: req.userId } });
+    if (!patient) {
+      return res.status(404).json({ success: false, message: "Patient profile not found." });
+    }
+
+    let doctor = null;
+    if (specialty) {
+      doctor = await prisma.doctor.findFirst({
+        where: {
+          isApproved: "approved",
+          isTelemedicine: true,
+          specialization: { contains: specialty, mode: "insensitive" }
+        }
+      });
+    }
+
+    if (!doctor) {
+      doctor = await prisma.doctor.findFirst({
+        where: { isApproved: "approved", isTelemedicine: true }
+      });
+    }
+
+    if (!doctor) {
+      doctor = await prisma.doctor.findFirst({
+        where: { isApproved: "approved" }
+      });
+    }
     if (!doctor) {
       return res.status(404).json({ success: false, message: "No doctors are currently available." });
     }
@@ -468,30 +523,30 @@ export const bookInstant = async (req, res) => {
     const formattedDate = today.toISOString().split("T")[0];
     const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
     const currentDay = days[today.getDay()];
-    
+
     const startingTime = `${String(today.getHours()).padStart(2, "0")}:${String(today.getMinutes()).padStart(2, "0")}`;
     const endingTime = `${String(today.getHours() + 1).padStart(2, "0")}:${String(today.getMinutes()).padStart(2, "0")}`;
 
-    const roomName = `healthbridge-instant-${doctor._id.toString().slice(-6)}-${Date.now()}`;
+    const roomName = `healthbridge-instant-${doctor.id.slice(-6)}-${Date.now()}`;
 
-    const booking = new Booking({
-      doctor: doctor._id,
-      user: req.userId,
-      ticketPrice: 199,
-      appointmentDate: formattedDate,
-      timeSlot: {
-        day: currentDay,
-        startingTime,
-        endingTime
+    const booking = await prisma.appointment.create({
+      data: {
+        doctorId: doctor.id,
+        patientId: patient.id,
+        hospitalId: doctor.hospitalId,
+        price: 199,
+        appointmentDate: formattedDate,
+        timeSlot: { day: currentDay, startingTime, endingTime },
+        symptoms: `Instant Consultation: ${symptoms}`,
+        consultationType: "video-instant",
+        mode: "online",
+        meetingRoom: roomName,
+        isPaid: true,
+        paymentStatus: "paid",
+        status: "confirmed",
       },
-      symptoms: `Instant Consultation: ${symptoms}`,
-      consultationType: "video-instant",
-      meetingRoom: roomName,
-      isPaid: true,
-      status: "confirmed"
     });
 
-    await booking.save();
     res.status(200).json({ success: true, message: "Instant video consultation booked successfully.", data: booking });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -508,12 +563,10 @@ export const generateAISummary = async (req, res) => {
   }
 
   try {
-    const booking = await Booking.findById(id);
+    const booking = await prisma.appointment.findUnique({ where: { id } });
     if (!booking) {
       return res.status(404).json({ success: false, message: "Appointment not found." });
     }
-
-    booking.doctorNotes = doctorNotes;
 
     const messages = [
       {
@@ -535,13 +588,13 @@ Structure:
       }
     ];
 
+    let aiSummary;
     try {
       const response = await getOpenRouterResponse(messages, { type: "json_object" });
-      const parsed = JSON.parse(response);
-      booking.aiSummary = parsed;
+      aiSummary = JSON.parse(response);
     } catch (e) {
       console.error("AI Generation error:", e.message);
-      booking.aiSummary = {
+      aiSummary = {
         symptoms: "Discussed in clinical session",
         diagnosis: "Observation noted by doctor",
         medications: "Take prescribed medication as advised",
@@ -551,9 +604,11 @@ Structure:
       };
     }
 
-    booking.status = "completed";
-    await booking.save();
-    res.status(200).json({ success: true, message: "AI consultation summary generated and saved successfully.", data: booking });
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: { doctorNotes, aiSummary, status: "completed" },
+    });
+    res.status(200).json({ success: true, message: "AI consultation summary generated and saved successfully.", data: updated });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -562,7 +617,10 @@ Structure:
 // 6. Retrieve Single Booking Info
 export const getSingleBooking = async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
+    const booking = await prisma.appointment.findUnique({
+      where: { id: req.params.id },
+      include: appointmentInclude,
+    });
     if (!booking) {
       return res.status(404).json({ success: false, message: "Booking not found." });
     }
@@ -582,20 +640,20 @@ export const createMeeting = async (req, res) => {
   }
 
   try {
-    const booking = await Booking.findById(appointmentId);
+    const booking = await prisma.appointment.findUnique({ where: { id: appointmentId } });
     if (!booking) {
       return res.status(404).json({ success: false, message: "Appointment not found." });
     }
 
     // Check if meeting already exists
-    let meeting = await Meeting.findOne({ appointmentId });
+    let meeting = await prisma.meeting.findUnique({ where: { appointmentId } });
     if (meeting) {
-      // Return existing meeting with fresh tokens
-      const patientToken  = generateVideoSDKToken(`patient-${booking.user._id || booking.user}`, meeting.roomId);
-      const doctorToken   = generateVideoSDKToken(`doctor-${booking.doctor._id || booking.doctor}`, meeting.roomId);
-      meeting.patientToken  = patientToken;
-      meeting.hospitalToken = doctorToken;
-      await meeting.save();
+      const patientToken  = generateVideoSDKToken(`patient-${booking.patientId}`, meeting.roomId);
+      const doctorToken   = generateVideoSDKToken(`doctor-${booking.doctorId}`, meeting.roomId);
+      meeting = await prisma.meeting.update({
+        where: { appointmentId },
+        data: { patientToken, hospitalToken: doctorToken },
+      });
       return res.status(200).json({
         success: true,
         message: "Meeting already exists.",
@@ -608,28 +666,25 @@ export const createMeeting = async (req, res) => {
     try {
       roomId = await createVideoSDKRoom();
     } catch (e) {
-      // Fallback: use the meetingRoom field from booking if VideoSDK API fails
       roomId = booking.meetingRoom || `hb-room-${appointmentId}`;
       console.error("VideoSDK room creation error (using fallback):", e.message);
     }
 
-    const patientId      = `patient-${booking.user._id || booking.user}`;
-    const doctorId       = `doctor-${booking.doctor._id || booking.doctor}`;
-    const patientToken   = generateVideoSDKToken(patientId, roomId);
-    const doctorToken    = generateVideoSDKToken(doctorId, roomId);
+    const patientToken   = generateVideoSDKToken(`patient-${booking.patientId}`, roomId);
+    const doctorToken    = generateVideoSDKToken(`doctor-${booking.doctorId}`, roomId);
 
-    meeting = new Meeting({
-      appointmentId,
-      roomId,
-      patientToken,
-      hospitalToken: doctorToken,
-      status: "created",
+    meeting = await prisma.meeting.create({
+      data: {
+        appointmentId,
+        roomId,
+        patientToken,
+        hospitalToken: doctorToken,
+        status: "created",
+      },
     });
-    await meeting.save();
 
     // Also update booking meetingRoom field
-    booking.meetingRoom = roomId;
-    await booking.save();
+    await prisma.appointment.update({ where: { id: appointmentId }, data: { meetingRoom: roomId } });
 
     res.status(201).json({
       success: true,
@@ -645,11 +700,11 @@ export const createMeeting = async (req, res) => {
 export const getMeetingByAppointment = async (req, res) => {
   const { appointmentId } = req.params;
   try {
-    let meeting = await Meeting.findOne({ appointmentId });
+    let meeting = await prisma.meeting.findUnique({ where: { appointmentId } });
 
     if (!meeting) {
       // Auto-create if it doesn't exist
-      const booking = await Booking.findById(appointmentId);
+      const booking = await prisma.appointment.findUnique({ where: { id: appointmentId } });
       if (!booking) {
         return res.status(404).json({ success: false, message: "Appointment not found." });
       }
@@ -662,27 +717,25 @@ export const getMeetingByAppointment = async (req, res) => {
         console.error("VideoSDK room creation error (using fallback):", e.message);
       }
 
-      const patientToken  = generateVideoSDKToken(`patient-${booking.user._id || booking.user}`, roomId);
-      const doctorToken   = generateVideoSDKToken(`doctor-${booking.doctor._id || booking.doctor}`, roomId);
+      const patientToken  = generateVideoSDKToken(`patient-${booking.patientId}`, roomId);
+      const doctorToken   = generateVideoSDKToken(`doctor-${booking.doctorId}`, roomId);
 
-      meeting = new Meeting({
-        appointmentId,
-        roomId,
-        patientToken,
-        hospitalToken: doctorToken,
-        status: "created",
+      meeting = await prisma.meeting.create({
+        data: { appointmentId, roomId, patientToken, hospitalToken: doctorToken, status: "created" },
       });
-      await meeting.save();
 
-      booking.meetingRoom = roomId;
-      await booking.save();
+      await prisma.appointment.update({ where: { id: appointmentId }, data: { meetingRoom: roomId } });
     } else {
       // Refresh tokens
-      const booking = await Booking.findById(appointmentId);
+      const booking = await prisma.appointment.findUnique({ where: { id: appointmentId } });
       if (booking) {
-        meeting.patientToken  = generateVideoSDKToken(`patient-${booking.user._id || booking.user}`, meeting.roomId);
-        meeting.hospitalToken = generateVideoSDKToken(`doctor-${booking.doctor._id || booking.doctor}`, meeting.roomId);
-        await meeting.save();
+        meeting = await prisma.meeting.update({
+          where: { appointmentId },
+          data: {
+            patientToken: generateVideoSDKToken(`patient-${booking.patientId}`, meeting.roomId),
+            hospitalToken: generateVideoSDKToken(`doctor-${booking.doctorId}`, meeting.roomId),
+          },
+        });
       }
     }
 
@@ -696,16 +749,78 @@ export const getMeetingByAppointment = async (req, res) => {
 export const endMeeting = async (req, res) => {
   const { appointmentId } = req.body;
   try {
-    const meeting = await Meeting.findOne({ appointmentId });
+    const meeting = await prisma.meeting.findUnique({ where: { appointmentId } });
     if (meeting) {
-      meeting.status = "ended";
-      await meeting.save();
+      await prisma.meeting.update({ where: { appointmentId }, data: { status: "ended" } });
     }
 
-    await Booking.findByIdAndUpdate(appointmentId, { status: "completed" });
+    await prisma.appointment.update({ where: { id: appointmentId }, data: { status: "completed" } });
 
     res.status(200).json({ success: true, message: "Meeting ended and appointment marked completed." });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
+};
+
+// 10. Create an instant/emergency video consult match
+export const createInstantBooking = async (req, res) => {
+  const { specialty } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.userId }, include: { patient: true } });
+    if (!user || !user.patient) {
+      return res.status(404).json({ success: false, message: "Patient profile not found" });
+    }
+
+    // Find the first doctor offering telemedicine in this specialty
+    const targetSpecialization = specialty || "General Physician";
+    const doctor = await prisma.doctor.findFirst({
+      where: {
+        isTelemedicine: true,
+        specialization: { contains: targetSpecialization, mode: 'insensitive' }
+      }
+    });
+
+    if (!doctor) {
+      // Fallback: find any telemedicine doctor
+      const fallbackDoctor = await prisma.doctor.findFirst({ where: { isTelemedicine: true } });
+      if (!fallbackDoctor) {
+        return res.status(404).json({ success: false, message: "No telemedicine doctors are online/available right now." });
+      }
+      return createBookingWithDoctor(fallbackDoctor, user.patient, res);
+    }
+
+    return createBookingWithDoctor(doctor, user.patient, res);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const createBookingWithDoctor = async (doctor, patient, res) => {
+  const todayStr = new Date().toISOString().split("T")[0];
+  const timeSlot = { day: "today", startingTime: "12:00", endingTime: "12:30" };
+  const roomId = `healthbridge-room-${Math.floor(100000 + Math.random() * 900000)}`;
+
+  const booking = await prisma.appointment.create({
+    data: {
+      doctorId: doctor.id,
+      patientId: patient.id,
+      hospitalId: doctor.hospitalId,
+      price: doctor.onlinePrice || 199,
+      appointmentDate: todayStr,
+      timeSlot,
+      symptoms: "Instant Emergency consultation",
+      status: "confirmed", // auto-confirm for instant match
+      isPaid: true,        // auto-pay/free triage
+      paymentStatus: "paid",
+      mode: "online",
+      consultationType: "video-instant",
+      meetingRoom: roomId,
+    },
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Instant consultation matched successfully",
+    data: booking
+  });
 };

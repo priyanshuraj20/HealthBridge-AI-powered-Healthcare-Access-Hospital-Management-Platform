@@ -1,9 +1,7 @@
-import MedicalReport from "../models/MedicalReportSchema.js";
-import User from "../models/UserSchema.js";
+import prisma from "../utils/prismaClient.js";
 
 export const uploadReport = async (req, res) => {
   const { title, fileUrl, fileType } = req.body;
-  const userId = req.userId;
 
   if (!title || !fileUrl) {
     return res.status(400).json({
@@ -13,14 +11,23 @@ export const uploadReport = async (req, res) => {
   }
 
   try {
-    const newReport = new MedicalReport({
-      user: userId,
-      title,
-      fileUrl,
-      fileType: fileType || "image",
+    const patient = await prisma.patient.findUnique({
+      where: { userId: req.userId },
     });
+    if (!patient) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Patient not found" });
+    }
 
-    await newReport.save();
+    const newReport = await prisma.report.create({
+      data: {
+        patientId: patient.id,
+        title,
+        fileUrl,
+        fileType: fileType || "image",
+      },
+    });
 
     res.status(201).json({
       success: true,
@@ -34,16 +41,34 @@ export const uploadReport = async (req, res) => {
 
 export const getReports = async (req, res) => {
   try {
-    let query = {};
+    let where = {};
     if (req.role === "patient") {
-      query.user = req.userId;
+      const patient = await prisma.patient.findUnique({
+        where: { userId: req.userId },
+      });
+      if (!patient) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Patient not found" });
+      }
+      where = { patientId: patient.id };
     } else if (req.role === "doctor" || req.role === "admin") {
       const { patientId } = req.query;
       if (patientId) {
-        query.user = patientId;
+        // patientId query param is a User.id; resolve to the Patient record.
+        let patient = await prisma.patient.findUnique({
+          where: { userId: patientId },
+        });
+        if (!patient) {
+          // Fall back to treating patientId directly as a Patient.id.
+          patient = await prisma.patient.findUnique({
+            where: { id: patientId },
+          });
+        }
+        where = { patientId: patient ? patient.id : patientId };
       } else {
-        // if doctor/admin doesn't specify patient, get all (or return empty)
-        query = {};
+        // if doctor/admin doesn't specify patient, get all
+        where = {};
       }
     } else {
       return res
@@ -51,7 +76,11 @@ export const getReports = async (req, res) => {
         .json({ success: false, message: "Unauthorized role" });
     }
 
-    const reports = await MedicalReport.find(query).sort({ createdAt: -1 });
+    const reports = await prisma.report.findMany({
+      where,
+      orderBy: { uploadedAt: "desc" },
+      include: { patient: { select: { name: true } } },
+    });
     res.status(200).json({ success: true, data: reports });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -61,7 +90,7 @@ export const getReports = async (req, res) => {
 export const deleteReport = async (req, res) => {
   const { id } = req.params;
   try {
-    const report = await MedicalReport.findById(id);
+    const report = await prisma.report.findUnique({ where: { id } });
     if (!report) {
       return res
         .status(404)
@@ -69,13 +98,18 @@ export const deleteReport = async (req, res) => {
     }
 
     // Authorization
-    if (req.role !== "admin" && report.user._id.toString() !== req.userId) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Unauthorized action" });
+    if (req.role !== "admin") {
+      const patient = await prisma.patient.findUnique({
+        where: { userId: req.userId },
+      });
+      if (!patient || patient.id !== report.patientId) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized action" });
+      }
     }
 
-    await MedicalReport.findByIdAndDelete(id);
+    await prisma.report.delete({ where: { id } });
     res
       .status(200)
       .json({ success: true, message: "Report deleted successfully" });

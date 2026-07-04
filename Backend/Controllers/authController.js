@@ -72,7 +72,34 @@ export const login = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ message: "Account not found" });
+      // Check Doctor table for doctor login
+      const doctor = await prisma.doctor.findUnique({
+        where: { email },
+        include: { hospital: true }
+      });
+      if (!doctor) {
+        return res.status(404).json({ message: "Account not found" });
+      }
+
+      const isPasswordMatch = await bcrypt.compare(password, doctor.passwordHash);
+      if (!isPasswordMatch) {
+        return res.status(400).json({ success: false, message: "Invalid Credentials" });
+      }
+
+      const token = jwt.sign(
+        { id: doctor.id, role: "doctor" },
+        process.env.JWT_SECRET_KEY,
+        { expiresIn: "7d" }
+      );
+      const { passwordHash, ...rest } = doctor;
+
+      return res.status(200).json({
+        success: true,
+        message: "Successfully Logged In",
+        token,
+        data: { ...rest, name: doctor.name },
+        role: "doctor",
+      });
     }
 
     const isPasswordMatch = await bcrypt.compare(password, user.passwordHash);

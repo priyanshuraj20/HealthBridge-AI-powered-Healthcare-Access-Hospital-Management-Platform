@@ -1,5 +1,4 @@
-import Prescription from "../models/PrescriptionSchema.js";
-import Booking from "../models/BookingSchema.js";
+import prisma from "../utils/prismaClient.js";
 
 export const createPrescription = async (req, res) => {
   const { user, booking, medicines, notes } = req.body;
@@ -13,18 +12,32 @@ export const createPrescription = async (req, res) => {
   }
 
   try {
-    const newPrescription = new Prescription({
-      doctor: doctorId,
-      user,
-      booking,
-      medicines,
-      notes: notes || "",
+    const patient = await prisma.patient.findUnique({ where: { userId: user } });
+    if (!patient) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Patient not found" });
+    }
+
+    const newPrescription = await prisma.prescription.create({
+      data: {
+        doctorId,
+        patientId: patient.id,
+        appointmentId: booking,
+        medicines,
+        notes: notes || "",
+      },
     });
 
-    await newPrescription.save();
-
     // Optionally update booking status to 'completed'
-    await Booking.findByIdAndUpdate(booking, { status: "completed" });
+    try {
+      await prisma.appointment.update({
+        where: { id: booking },
+        data: { status: "completed" },
+      });
+    } catch (updateErr) {
+      // Ignore a bad booking id so it doesn't fail the whole request
+    }
 
     res.status(201).json({
       success: true,
@@ -38,11 +51,19 @@ export const createPrescription = async (req, res) => {
 
 export const getPrescriptions = async (req, res) => {
   try {
-    let query = {};
+    const where = {};
     if (req.role === "patient") {
-      query.user = req.userId;
+      const patient = await prisma.patient.findUnique({
+        where: { userId: req.userId },
+      });
+      if (!patient) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Patient not found" });
+      }
+      where.patientId = patient.id;
     } else if (req.role === "doctor") {
-      query.doctor = req.userId;
+      where.doctorId = req.userId;
     } else if (req.role === "admin") {
       // admin can see all
     } else {
@@ -51,8 +72,13 @@ export const getPrescriptions = async (req, res) => {
         .json({ success: false, message: "Unauthorized role" });
     }
 
-    const prescriptions = await Prescription.find(query).sort({
-      createdAt: -1,
+    const prescriptions = await prisma.prescription.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        doctor: { select: { name: true, specialization: true, offlinePrice: true } },
+        patient: { select: { name: true } },
+      },
     });
     res.status(200).json({ success: true, data: prescriptions });
   } catch (err) {
@@ -63,7 +89,7 @@ export const getPrescriptions = async (req, res) => {
 export const getPrescriptionById = async (req, res) => {
   const { id } = req.params;
   try {
-    const prescription = await Prescription.findById(id);
+    const prescription = await prisma.prescription.findUnique({ where: { id } });
     if (!prescription) {
       return res
         .status(404)
@@ -71,11 +97,21 @@ export const getPrescriptionById = async (req, res) => {
     }
 
     // Authorization check
-    if (
-      req.role !== "admin" &&
-      prescription.user._id.toString() !== req.userId &&
-      prescription.doctor._id.toString() !== req.userId
-    ) {
+    let authorized = false;
+    if (req.role === "admin") {
+      authorized = true;
+    } else if (prescription.doctorId === req.userId) {
+      authorized = true;
+    } else {
+      const patient = await prisma.patient.findUnique({
+        where: { userId: req.userId },
+      });
+      if (patient && prescription.patientId === patient.id) {
+        authorized = true;
+      }
+    }
+
+    if (!authorized) {
       return res
         .status(401)
         .json({ success: false, message: "Unauthorized access" });

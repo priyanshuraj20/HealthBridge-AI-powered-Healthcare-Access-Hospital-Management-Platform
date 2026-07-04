@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { BASE_URL } from "../../config.js";
 import { authContext } from "../../context/AuthContext.jsx";
@@ -43,6 +43,7 @@ export default function DoctorDetails() {
   const [consultationType, setConsultationType] = useState("physical");
   const [symptoms, setSymptoms] = useState("");
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [selectedSpecialty, setSelectedSpecialty] = useState(null);
 
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -73,9 +74,9 @@ export default function DoctorDetails() {
     fetchHospitalDetails();
   }, [id]);
 
-  // Group doctors by their department
+  // Group doctors by their specialization (department was removed from the schema)
   const groupedDoctors = doctors.reduce((acc, doc) => {
-    const dept = doc.department || "General Medicine";
+    const dept = doc.specialization || "General Medicine";
     if (!acc[dept]) acc[dept] = [];
     acc[dept].push(doc);
     return acc;
@@ -103,10 +104,10 @@ export default function DoctorDetails() {
       return;
     }
 
-    const timeSlot = selectedDoctor.timeSlots[parseInt(selectedSlotIndex)];
+    const timeSlot = (selectedDoctor.timeSlots || [])[parseInt(selectedSlotIndex)];
     setBookingLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/bookings/checkout-session/${selectedDoctor._id}`, {
+      const res = await fetch(`${BASE_URL}/bookings/checkout-session/${selectedDoctor.id}`, {
         method: "post",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -141,12 +142,17 @@ export default function DoctorDetails() {
   if (error) return <div className="py-20"><ErrorComponent errMsg={error} /></div>;
   if (!hospital) return null;
 
+  // API now returns comma-separated strings and a beds[] array
+  const specialtiesArr = (hospital.specialties || "").split(",").map(s => s.trim()).filter(Boolean);
+  const insurancesArr = (hospital.supportedInsurances || "").split(",").map(s => s.trim()).filter(Boolean);
+  const bedInfo = (type) => (hospital.beds || []).find(b => b.type === type) || {};
+
   return (
     <div className="bg-gray-50 min-h-screen pb-16">
       {/* Cover Banner */}
       <div className="h-64 md:h-80 bg-slate-900 relative overflow-hidden">
         <img 
-          src="https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&w=1200&q=80" 
+          src={hospital.photoUrl || "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&w=1200&q=80"} 
           alt={hospital.name} 
           className="w-full h-full object-cover opacity-40"
         />
@@ -237,10 +243,10 @@ export default function DoctorDetails() {
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
-                      { label: "General Beds", avail: hospital.beds?.general?.available || 12, tot: hospital.beds?.general?.total || 50, color: "emerald" },
-                      { label: "ICU Beds", avail: hospital.beds?.icu?.available || 3, tot: hospital.beds?.icu?.total || 10, color: "purple" },
-                      { label: "Private Rooms", avail: hospital.beds?.private?.available || 5, tot: hospital.beds?.private?.total || 15, color: "blue" },
-                      { label: "Emergency Beds", avail: hospital.beds?.emergency?.available || 2, tot: hospital.beds?.emergency?.total || 8, color: "red" }
+                      { label: "General Beds", avail: bedInfo("general").available ?? 12, tot: bedInfo("general").total ?? 50, color: "emerald" },
+                      { label: "ICU Beds", avail: bedInfo("icu").available ?? 3, tot: bedInfo("icu").total ?? 10, color: "purple" },
+                      { label: "Private Rooms", avail: bedInfo("private").available ?? 5, tot: bedInfo("private").total ?? 15, color: "blue" },
+                      { label: "Emergency Beds", avail: bedInfo("emergency").available ?? 2, tot: bedInfo("emergency").total ?? 8, color: "red" }
                     ].map(bed => {
                       const theme = {
                         emerald: "bg-emerald-50 border-emerald-100 text-emerald-800",
@@ -264,12 +270,12 @@ export default function DoctorDetails() {
                   <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-150 space-y-4">
                     <h4 className="font-extrabold text-headingColor text-sm border-b pb-3 uppercase tracking-wide">Accepted Insurances</h4>
                     <div className="flex flex-wrap gap-2">
-                      {hospital.supportedInsurances?.map((ins, i) => (
+                      {insurancesArr.map((ins, i) => (
                         <span key={i} className="bg-indigo-50 border border-indigo-150 text-indigo-700 text-xs px-3 py-1.5 rounded-xl font-bold">
                           {ins}
                         </span>
                       ))}
-                      {hospital.supportedInsurances?.includes("PM-JAY") && (
+                      {insurancesArr.some(ins => ins.includes("PM-JAY")) && (
                         <span className="bg-emerald-50 border border-emerald-150 text-emerald-800 text-xs px-3 py-1.5 rounded-xl font-extrabold flex items-center gap-1.5 shadow-sm">
                           <BiCheckCircle /> PM-JAY Cashless
                         </span>
@@ -280,7 +286,7 @@ export default function DoctorDetails() {
                   <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-150 space-y-4">
                     <h4 className="font-extrabold text-headingColor text-sm border-b pb-3 uppercase tracking-wide">Featured Specialties</h4>
                     <div className="flex flex-wrap gap-2">
-                      {hospital.specialties?.map((spec, i) => (
+                      {specialtiesArr.map((spec, i) => (
                         <span key={i} className="bg-gray-50 border text-textColor text-xs px-3 py-1.5 rounded-xl font-bold">
                           {spec}
                         </span>
@@ -331,60 +337,118 @@ export default function DoctorDetails() {
               </div>
             )}
 
-            {/* Tab 3: Doctors Directory grouped by department */}
+            {/* Tab 3: Doctors Directory — Specialty Cards → Filtered Doctors */}
             {activeTab === "doctors" && (
               <div className="space-y-6">
-                <div>
-                  <h4 className="font-extrabold text-headingColor text-base">Onboarded Medical Doctors</h4>
-                  <p className="text-textColor text-xs mt-0.5">Select a verified practitioner to schedule an offline or video consultation.</p>
-                </div>
-
                 {Object.keys(groupedDoctors).length === 0 ? (
                   <div className="text-center bg-white border border-dashed rounded-3xl p-10 text-textColor">
                     <FaUserMd size={40} className="mx-auto mb-3 text-gray-300" />
                     <p className="font-bold text-sm">No doctors registered at this branch yet.</p>
                   </div>
-                ) : (
-                  Object.keys(groupedDoctors).map((dept) => (
-                    <div key={dept} className="bg-white rounded-3xl border border-gray-150 p-6 space-y-4 shadow-sm">
-                      <h4 className="text-sm font-extrabold text-headingColor border-b pb-2.5 uppercase tracking-wider flex items-center gap-1.5 text-primaryColor">
-                        <FaHospital size={12} /> {dept} Department
-                      </h4>
-                      
-                      <div className="grid md:grid-cols-2 gap-4">
-                        {groupedDoctors[dept].map((doc) => (
-                          <div 
-                            key={doc._id} 
-                            className="border border-gray-100 bg-gray-50/50 p-4 rounded-2xl flex justify-between gap-3 shadow-sm hover:border-primaryColor/20 hover:bg-white transition-all flex-col sm:flex-row"
-                          >
-                            <div className="flex gap-3">
-                              <figure className="w-14 h-14 rounded-full overflow-hidden border border-primaryColor/40 bg-white flex-shrink-0">
-                                <img src={doc.photo || "https://res.cloudinary.com/default-avatar.png"} alt="" className="w-full h-full object-cover" />
-                              </figure>
-                              <div>
-                                <h5 className="font-bold text-headingColor text-sm">{doc.name}</h5>
-                                <p className="text-[10px] text-textColor font-medium bg-white px-2 py-0.5 border rounded w-fit mt-1">{doc.specialization || "Physician"}</p>
-                                <p className="text-[10px] text-textColor mt-2">⭐⭐ {doc.averageRating || 4.5} rating</p>
-                              </div>
-                            </div>
+                ) : !selectedSpecialty ? (
+                  /* ── Step 1: Specialty Cards Grid ────────────── */
+                  <>
+                    <div>
+                      <h4 className="font-extrabold text-headingColor text-base">Choose a Specialty</h4>
+                      <p className="text-textColor text-xs mt-0.5">Tap a department to view available doctors and book an appointment.</p>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {Object.keys(groupedDoctors).map((dept) => {
+                        const SPEC_ICONS = {
+                          "Orthopedics": "🦴", "Cardiology": "❤️", "Neurology": "🧠",
+                          "Dentistry": "🦷", "Ophthalmology": "👁️", "Dermatology": "🧴",
+                          "Pediatrics": "👶", "General Medicine": "🩺", "Psychiatry": "🧘",
+                          "Gynecology": "🤰", "ENT": "👂", "Gastroenterology": "🫁",
+                          "Urology": "🫘", "Nephrology": "🫀", "Pulmonology": "🫁",
+                          "Oncology": "🎗️", "Endocrinology": "⚗️", "Radiology": "📡",
+                          "General Surgery": "🔪", "Physiotherapy": "🏃",
+                        };
+                        const SPEC_COLORS = [
+                          "from-teal-400 to-teal-600", "from-rose-400 to-rose-600", "from-indigo-400 to-indigo-600",
+                          "from-sky-400 to-sky-600", "from-amber-400 to-amber-600", "from-purple-400 to-purple-600",
+                          "from-emerald-400 to-emerald-600", "from-pink-400 to-pink-600", "from-cyan-400 to-cyan-600",
+                        ];
+                        const idx = Object.keys(groupedDoctors).indexOf(dept);
+                        const colorClass = SPEC_COLORS[idx % SPEC_COLORS.length];
+                        const icon = SPEC_ICONS[dept] || "🏥";
+                        const docCount = groupedDoctors[dept].length;
 
-                            <div className="flex flex-col justify-between items-start sm:items-end text-right gap-2.5 border-t sm:border-t-0 pt-2.5 sm:pt-0">
-                              <div>
-                                <p className="text-[9px] font-bold text-gray-400 uppercase leading-none">Consult Fee</p>
-                                <p className="font-extrabold text-teal-700 text-xs mt-0.5">₹{doc.ticketPrice} INR</p>
-                              </div>
-                              <button 
-                                onClick={() => handleOpenBooking(doc)}
-                                className="bg-primaryColor hover:bg-teal-700 text-white font-bold text-[10px] px-3.5 py-2 rounded-xl flex items-center gap-1 transition-all shadow-sm shadow-teal-600/10 w-full sm:w-auto"
-                              >
-                                <BiCalendar /> Book Slot
-                              </button>
+                        return (
+                          <button
+                            key={dept}
+                            onClick={() => setSelectedSpecialty(dept)}
+                            className="group bg-white rounded-3xl border border-gray-150 p-5 shadow-sm hover:shadow-lg hover:border-primaryColor/30 transition-all text-left space-y-3"
+                          >
+                            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${colorClass} flex items-center justify-center text-2xl shadow-md group-hover:scale-110 transition-transform`}>
+                              {icon}
                             </div>
-                          </div>
-                        ))}
+                            <div>
+                              <h5 className="font-extrabold text-headingColor text-sm">{dept}</h5>
+                              <p className="text-[10px] text-textColor mt-0.5">{docCount} doctor{docCount > 1 ? "s" : ""} available</p>
+                            </div>
+                            <div className="flex items-center gap-1 text-primaryColor text-[10px] font-bold group-hover:gap-2 transition-all">
+                              View Doctors <FaArrowRight size={8} />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  /* ── Step 2: Filtered Doctors for Selected Specialty ────────────── */
+                  <>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setSelectedSpecialty(null)}
+                        className="bg-gray-100 hover:bg-gray-200 text-headingColor font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all border border-gray-200"
+                      >
+                        <BiArrowBack size={14} /> All Specialties
+                      </button>
+                      <div>
+                        <h4 className="font-extrabold text-headingColor text-base">{selectedSpecialty}</h4>
+                        <p className="text-textColor text-xs mt-0.5">{groupedDoctors[selectedSpecialty]?.length || 0} doctor(s) in this department</p>
                       </div>
                     </div>
-                  ))
+                    
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {(groupedDoctors[selectedSpecialty] || []).map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="border border-gray-100 bg-white p-5 rounded-2xl flex justify-between gap-3 shadow-sm hover:shadow-md hover:border-primaryColor/20 transition-all flex-col sm:flex-row"
+                        >
+                          <div className="flex gap-3">
+                            <figure className="w-14 h-14 rounded-full overflow-hidden border-2 border-primaryColor/30 bg-white flex-shrink-0">
+                              <img src={doc.photoUrl || "https://res.cloudinary.com/dnb4jcioy/image/upload/v1782951551/famous_doctor_portrait.jpg"} alt="" className="w-full h-full object-cover" />
+                            </figure>
+                            <div>
+                              <h5 className="font-bold text-headingColor text-sm">{doc.name}</h5>
+                              <p className="text-[10px] text-textColor font-medium bg-gray-50 px-2 py-0.5 border rounded w-fit mt-1">{doc.specialization || "Physician"}</p>
+                              <p className="text-[10px] text-textColor mt-1.5">⭐ {doc.rating || 4.5} rating • {doc.experienceYears || 0} yrs exp</p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col justify-between items-start sm:items-end text-right gap-2.5 border-t sm:border-t-0 pt-2.5 sm:pt-0">
+                            <div className="space-y-1">
+                              <p className="text-[9px] font-bold text-gray-400 uppercase leading-none">Offline Fee</p>
+                              <p className="font-extrabold text-teal-700 text-xs mt-0.5">₹{doc.offlinePrice} INR</p>
+                              {doc.isTelemedicine && doc.onlinePrice !== null && (
+                                <>
+                                  <p className="text-[9px] font-bold text-gray-400 uppercase leading-none mt-1">Online Fee</p>
+                                  <p className="font-extrabold text-indigo-700 text-xs mt-0.5">₹{doc.onlinePrice} INR</p>
+                                </>
+                              )}
+                            </div>
+                            <button 
+                              onClick={() => handleOpenBooking(doc)}
+                              className="bg-primaryColor hover:bg-teal-700 text-white font-bold text-[10px] px-3.5 py-2 rounded-xl flex items-center gap-1 transition-all shadow-sm shadow-teal-600/10 w-full sm:w-auto"
+                            >
+                              <BiCalendar /> Book Slot
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -480,7 +544,12 @@ export default function DoctorDetails() {
                     <BiUserPin size={16} className="text-primaryColor" />
                     <div>
                       <p className="font-bold text-headingColor">{selectedDoctor.name}</p>
-                      <p className="text-[10px] text-textColor mt-0.5">{selectedDoctor.specialization} • consult fee: <strong>₹{selectedDoctor.ticketPrice} INR</strong></p>
+                      <p className="text-[10px] text-textColor mt-0.5">
+                        {selectedDoctor.specialization} • Offline: <strong>₹{selectedDoctor.offlinePrice} INR</strong>
+                        {selectedDoctor.isTelemedicine && selectedDoctor.onlinePrice !== null && (
+                          <> | Online: <strong>₹{selectedDoctor.onlinePrice} INR</strong></>
+                        )}
+                      </p>
                     </div>
                   </div>
 
@@ -581,6 +650,19 @@ export default function DoctorDetails() {
                       rows={3}
                       className="w-full px-3 py-2 border rounded-xl text-xs bg-gray-50 focus:outline-none focus:border-primaryColor text-textColor resize-none leading-relaxed"
                     />
+                  </div>
+
+                  <div className="bg-teal-50/50 border border-teal-100 rounded-2xl p-4 text-center mt-3">
+                    <p className="text-[10px] font-bold text-teal-800 uppercase tracking-wider">Estimated Amount Due</p>
+                    <p className="text-xl font-extrabold text-headingColor mt-0.5">
+                      ₹{consultationType === "physical" 
+                        ? selectedDoctor.offlinePrice 
+                        : (selectedDoctor.onlinePrice || selectedDoctor.offlinePrice)
+                      } INR
+                    </p>
+                    <p className="text-[9px] text-textColor mt-0.5">
+                      Mode: {consultationType === "physical" ? "In-Person Consultation" : "Online Video Consultation"}
+                    </p>
                   </div>
 
                   <div className="flex gap-3 pt-2">

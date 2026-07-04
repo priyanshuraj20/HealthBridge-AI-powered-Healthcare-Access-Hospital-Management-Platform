@@ -1,7 +1,8 @@
-import Hospital from "../models/HospitalSchema.js";
-import Doctor from "../models/DoctorSchema.js";
-import User from "../models/UserSchema.js";
+import prisma from "./prismaClient.js";
 import bcrypt from "bcryptjs";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const assets = require("./uploaded_assets.json");
 
 // Helper hospital names
 const indianHospitals = [
@@ -45,33 +46,58 @@ const doctorNames = [
   "Dr. Daniel Clark", "Dr. Jessica Lewis"
 ];
 
+const TELEMEDICINE_SPECIALTIES = ["General Physician", "Pediatrics", "Dermatology", "General Medicine"];
+const isTelemedicineEligible = (spec) =>
+  TELEMEDICINE_SPECIALTIES.some(s => (spec || "").toLowerCase().includes(s.toLowerCase()));
+
 export const seedDatabase = async () => {
   try {
-    const hospitalCount = await Hospital.countDocuments();
+    const hospitalCount = await prisma.hospital.count();
     if (hospitalCount > 0) {
       console.log("Database already seeded (hospitals found). Skipping seeding.");
       return;
     }
     console.log("Starting database seeding process...");
 
-    // 1. Generate Hospitals
-    const generatedHospitals = [];
+    // 0. Umbrella organization that owns all seeded branches
+    const orgPassword = await bcrypt.hash("seededpassword123", 10);
+    const orgUser = await prisma.user.upsert({
+      where: { email: "network-admin@healthbridge.com" },
+      update: {},
+      create: {
+        email: "network-admin@healthbridge.com",
+        passwordHash: orgPassword,
+        role: "org_admin",
+        organization: {
+          create: {
+            name: "HealthBridge Network",
+            taxId: "HB-NETWORK-0001",
+            verificationStatus: "Approved"
+          }
+        }
+      },
+      include: { organization: true }
+    });
+    const organizationId = orgUser.organization.id;
 
-    // Seed 40 Indian Hospitals
+    // 1. Build hospital payloads (with nested beds & treatment costs)
+    const hospitalPayloads = [];
+
+    // 40 Indian hospitals
     indianHospitals.forEach((name, index) => {
-      const isGovernment = index >= 25; // 15 government/civil centers
+      const isGovernment = index >= 25;
       const city = ["Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Hyderabad", "Pune", "Ahmedabad"][index % 8];
       const distance = parseFloat((1.0 + Math.random() * 15.0).toFixed(1));
       const rating = parseFloat((3.5 + Math.random() * 1.5).toFixed(1));
       const waitingTime = isGovernment ? Math.floor(60 + Math.random() * 120) : Math.floor(10 + Math.random() * 40);
-      
+
       const specialties = [];
-      const numSpecialties = 3 + (index % 4); // 3 to 6 specialties
+      const numSpecialties = 3 + (index % 4);
       for (let i = 0; i < numSpecialties; i++) {
         const spec = specialtiesList[(index + i) % specialtiesList.length];
         if (!specialties.includes(spec)) specialties.push(spec);
       }
-      
+
       const supportedInsurances = [];
       if (isGovernment) {
         supportedInsurances.push("PM-JAY", "State Chief Minister Health Scheme");
@@ -104,33 +130,38 @@ export const seedDatabase = async () => {
         }
       });
 
-      generatedHospitals.push({
+      hospitalPayloads.push({
+        organizationId,
         name: `${name} (${city})`,
         location: `${city} Medical Zone`,
         city,
         distance,
         rating,
         waitingTime,
-        specialties,
-        supportedInsurances,
+        photoUrl: assets.hospitals[index % assets.hospitals.length],
+        verificationStatus: "Approved",
+        specialties: specialties.join(","),
+        supportedInsurances: supportedInsurances.join(","),
         beds: {
-          icu: { total: 20 + (index % 10), available: Math.floor(Math.random() * 10) },
-          general: { total: 100 + (index % 50), available: Math.floor(Math.random() * 40) },
-          private: { total: 15 + (index % 15), available: Math.floor(Math.random() * 8) },
-          emergency: { total: 10 + (index % 5), available: Math.floor(Math.random() * 5) }
+          create: [
+            { type: "icu", total: 20 + (index % 10), available: Math.floor(Math.random() * 10) },
+            { type: "general", total: 100 + (index % 50), available: Math.floor(Math.random() * 40) },
+            { type: "private", total: 15 + (index % 15), available: Math.floor(Math.random() * 8) },
+            { type: "emergency", total: 10 + (index % 5), available: Math.floor(Math.random() * 5) }
+          ]
         },
-        treatmentCosts
+        treatmentCosts: { create: treatmentCosts }
       });
     });
 
-    // Seed 15 International Hospitals
+    // 15 International hospitals
     internationalHospitals.forEach((name, index) => {
       const country = ["USA", "UK", "UAE", "Canada", "Singapore", "Australia"][index % 6];
       const city = ["New York", "London", "Dubai", "Toronto", "Singapore", "Sydney"][index % 6];
       const distance = parseFloat((500.0 + Math.random() * 8000.0).toFixed(1));
       const rating = parseFloat((4.2 + Math.random() * 0.8).toFixed(1));
       const waitingTime = Math.floor(10 + Math.random() * 30);
-      
+
       const specialties = ["General Medicine", "Cardiology", "Neurology", "General Surgery", "Pediatrics", "Dermatology", "Orthopedics", "Ophthalmology"];
       const supportedInsurances = ["Cigna", "Aetna", "Blue Cross Blue Shield", "Bupa International", "Allianz Care"];
 
@@ -144,39 +175,47 @@ export const seedDatabase = async () => {
         { treatmentName: "Cataract Operation", cost: Math.floor(80000 + Math.random() * 50000) }
       ];
 
-      generatedHospitals.push({
+      hospitalPayloads.push({
+        organizationId,
         name: `${name} (${city}, ${country})`,
         location: `${city} Health Center`,
         city,
         distance,
         rating,
         waitingTime,
-        specialties,
-        supportedInsurances,
+        photoUrl: assets.hospitals[(index + indianHospitals.length) % assets.hospitals.length],
+        verificationStatus: "Approved",
+        specialties: specialties.join(","),
+        supportedInsurances: supportedInsurances.join(","),
         beds: {
-          icu: { total: 30, available: 12 },
-          general: { total: 150, available: 68 },
-          private: { total: 60, available: 25 },
-          emergency: { total: 20, available: 9 }
+          create: [
+            { type: "icu", total: 30, available: 12 },
+            { type: "general", total: 150, available: 68 },
+            { type: "private", total: 60, available: 25 },
+            { type: "emergency", total: 20, available: 9 }
+          ]
         },
-        treatmentCosts
+        treatmentCosts: { create: treatmentCosts }
       });
     });
 
-    await Hospital.deleteMany({});
-    const insertedHospitals = await Hospital.insertMany(generatedHospitals);
+    // Insert hospitals sequentially so we can capture their ids for doctor linkage
+    const insertedHospitals = [];
+    for (const payload of hospitalPayloads) {
+      const created = await prisma.hospital.create({ data: payload });
+      insertedHospitals.push(created);
+    }
     console.log(`Successfully seeded ${insertedHospitals.length} hospitals (40 Indian, 15 International).`);
 
-    // 2. Generate Doctors linked to seeded hospitals
-    const mockDoctorsList = [];
+    // 2. Doctors linked to seeded hospitals
+    const doctorPassword = await bcrypt.hash("seededpassword123", 10);
 
-    doctorNames.forEach((name, index) => {
+    for (let index = 0; index < doctorNames.length; index++) {
+      const name = doctorNames[index];
       const isFemale = index % 2 !== 0;
       const isInternational = index >= 40;
-      
+
       const specialization = specialtiesList[index % specialtiesList.length];
-      const department = specialization;
-      
       let specLabel = specialization;
       if (specialization === "General Surgery") {
         specLabel = "General Surgeon (Appendix, Hernia)";
@@ -186,111 +225,63 @@ export const seedDatabase = async () => {
         specLabel = `${specialization} Specialist`;
       }
 
-      const ticketPrice = isInternational ? Math.floor(3000 + Math.random() * 3000) : Math.floor(300 + Math.random() * 700);
-      
-      // Evenly distribute doctors across all seeded hospitals
-      const hospitalIndex = index % insertedHospitals.length;
-      const hospitalId = insertedHospitals[hospitalIndex]._id;
+      const offlinePrice = isInternational ? Math.floor(3000 + Math.random() * 3000) : Math.floor(300 + Math.random() * 700);
+      const telemedicine = isTelemedicineEligible(specLabel);
+      const hospitalId = insertedHospitals[index % insertedHospitals.length].id;
 
-      mockDoctorsList.push({
-        hospital: hospitalId,
-        name,
-        email: `${name.toLowerCase().replace(/[^a-z]/g, "")}@healthbridge.com`,
-        password: "seededpassword123", // Will be hashed below
-        role: "doctor",
-        specialization: specLabel,
-        department,
-        gender: isFemale ? "female" : "male",
-        languages: isInternational ? ["English", "Spanish", "French"][index % 3] : ["English", "Hindi", "Regional"][index % 3],
-        ticketPrice,
-        isApproved: "approved",
-        averageRating: parseFloat((4.0 + Math.random() * 1.0).toFixed(1)),
-        totalRating: Math.floor(10 + Math.random() * 90),
-        bio: `Dedicated medical professional specializing in ${department} with focus on clinical excellence and patient care.`,
-        about: `Highly qualified medical practitioner with a proven track record of successful treatments in the field of ${department}.`,
-        photo: isFemale 
-          ? "https://res.cloudinary.com/dnb4jcioy/image/upload/v1782923819/yigjtzlmg0nyaxjr3wv9.jpg"
-          : "https://res.cloudinary.com/dnb4jcioy/image/upload/v1782923791/ufn6oplhjmx1hzmydfru.jpg",
-        timeSlots: [
-          { day: "monday", startingTime: "09:00", endingTime: "12:00" },
-          { day: "wednesday", startingTime: "14:00", endingTime: "17:00" },
-          { day: "friday", startingTime: "10:00", endingTime: "13:00" }
-        ],
-        experiences: [
-          { hospital: "National Health Centre", position: "Consultant Specialist" }
-        ],
-        qualifications: [
-          { degree: "MBBS", university: "State Medical College" },
-          { degree: "MD / MS", university: "PG Institute of Medical Sciences" }
-        ]
+      await prisma.doctor.create({
+        data: {
+          hospitalId,
+          name,
+          email: `${name.toLowerCase().replace(/[^a-z]/g, "")}@healthbridge.com`,
+          passwordHash: doctorPassword,
+          specialization: specLabel,
+          qualification: "MBBS, MD / MS",
+          experienceYears: Math.floor(3 + Math.random() * 20),
+          offlinePrice,
+          onlinePrice: telemedicine ? Math.max(199, Math.floor(offlinePrice * 0.6)) : null,
+          isTelemedicine: telemedicine,
+          rating: parseFloat((4.0 + Math.random() * 1.0).toFixed(1)),
+          bio: `Dedicated medical professional specializing in ${specialization} with focus on clinical excellence and patient care.`,
+          photoUrl: isFemale
+            ? assets.femaleDoctors[index % assets.femaleDoctors.length]
+            : assets.maleDoctors[index % assets.maleDoctors.length]
+        }
       });
-    });
+    }
+    console.log(`Successfully seeded ${doctorNames.length} doctors.`);
 
-    await Doctor.deleteMany({ email: { $in: mockDoctorsList.map((d) => d.email) } });
-
-    const hashedDoctors = await Promise.all(
-      mockDoctorsList.map(async (doc) => {
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(doc.password, salt);
-        return { 
-          ...doc, 
-          password: hashedPassword
-        };
-      })
-    );
-
-    await Doctor.insertMany(hashedDoctors);
-    console.log(`Successfully seeded ${hashedDoctors.length} doctors (male/female, inside/outside India).`);
-
-    // 3. Seed Patients & Branch Staff
-    const mockUsers = [
-      {
-        name: "Rajesh Kumar",
-        email: "rajesh.kumar@healthbridge.com",
-        password: "seededpassword123",
-        role: "patient",
-        gender: "male",
-        bloodGroup: "O+"
-      },
-      {
-        name: "Priya Patel",
-        email: "priya.patel@healthbridge.com",
-        password: "seededpassword123",
-        role: "patient",
-        gender: "female",
-        bloodGroup: "B+"
-      },
-      {
-        name: "Aditi Receptionist",
-        email: "receptionist@medicare.com",
-        password: "seededpassword123",
-        role: "receptionist",
-        gender: "female",
-        hospital: insertedHospitals[0]._id
-      },
-      {
-        name: "Vikram LabTech",
-        email: "labtech@medicare.com",
-        password: "seededpassword123",
-        role: "lab_tech",
-        gender: "male",
-        hospital: insertedHospitals[0]._id
-      }
+    // 3. Mock patients & staff
+    const patientPassword = await bcrypt.hash("seededpassword123", 10);
+    const patients = [
+      { email: "rajesh.kumar@healthbridge.com", name: "Rajesh Kumar", bloodGroup: "O+" },
+      { email: "priya.patel@healthbridge.com", name: "Priya Patel", bloodGroup: "B+" }
     ];
+    for (const p of patients) {
+      await prisma.user.upsert({
+        where: { email: p.email },
+        update: {},
+        create: {
+          email: p.email,
+          passwordHash: patientPassword,
+          role: "patient",
+          patient: { create: { name: p.name, bloodGroup: p.bloodGroup } }
+        }
+      });
+    }
 
-    await User.deleteMany({ email: { $in: mockUsers.map(u => u.email) } });
-
-    const hashedUsers = await Promise.all(
-      mockUsers.map(async (usr) => {
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(usr.password, salt);
-        return { ...usr, password: hashedPassword };
-      })
-    );
-
-    await User.insertMany(hashedUsers);
+    const staff = [
+      { email: "receptionist@medicare.com", role: "receptionist" },
+      { email: "labtech@medicare.com", role: "lab_tech" }
+    ];
+    for (const s of staff) {
+      await prisma.user.upsert({
+        where: { email: s.email },
+        update: {},
+        create: { email: s.email, passwordHash: patientPassword, role: s.role }
+      });
+    }
     console.log("Mock Patients & Hospital Staff users seeded successfully.");
-
   } catch (err) {
     console.error("Error seeding database:", err.message);
   }

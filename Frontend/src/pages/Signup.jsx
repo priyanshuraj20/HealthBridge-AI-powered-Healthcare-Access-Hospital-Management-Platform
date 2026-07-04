@@ -1,11 +1,14 @@
-﻿import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import uploadImageToCloudinary from "../utils/uploadCloudinary.js";
 import { BASE_URL } from "../config.js";
 import { toast } from "react-toastify";
 import HashLoader from "react-spinners/HashLoader";
 
 const Signup = () => {
+  const [searchParams] = useSearchParams();
+  const defaultRole = searchParams.get("role") === "hospital" ? "org_admin" : "patient";
+
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,7 +18,7 @@ const Signup = () => {
     password: "",
     photo: "",
     gender: "",
-    role: "patient",
+    role: defaultRole,
     taxId: "",
   });
 

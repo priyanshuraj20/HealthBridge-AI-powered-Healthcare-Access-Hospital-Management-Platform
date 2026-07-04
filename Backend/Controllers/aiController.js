@@ -1,4 +1,4 @@
-import Hospital from "../models/HospitalSchema.js";
+import prisma from "../utils/prismaClient.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -18,7 +18,7 @@ const getSchemesConfig = () => {
 
 const getDatabaseContext = async () => {
   try {
-    const hospitals = await Hospital.find({});
+    const hospitals = await prisma.hospital.findMany({ include: { treatmentCosts: true, beds: true } });
     const schemesConfig = getSchemesConfig();
     
     let context = "Here is the ACTUAL live data from our database. Use ONLY this data when referring to specific hospitals, treatment costs, distance, ratings, waiting times, bed availability, scheme eligibility thresholds, covered treatments, and required documents. Do NOT make up names, numbers, or rules:\n\n";
@@ -45,13 +45,19 @@ const getDatabaseContext = async () => {
         context += `  Distance from user center: ${h.distance} km\n`;
         context += `  Rating: ${h.rating}/5\n`;
         context += `  Emergency / OPD Wait Time: ${h.waitingTime} minutes\n`;
-        context += `  Specialties: ${h.specialties.join(", ")}\n`;
-        context += `  Accepted Insurances/Schemes: ${h.supportedInsurances.join(", ")}\n`;
+        const specialtiesList = (h.specialties || "").split(",").map((s) => s.trim()).filter(Boolean);
+        const supportedInsurancesList = (h.supportedInsurances || "").split(",").map((s) => s.trim()).filter(Boolean);
+        const icuBed = (h.beds || []).find((b) => b.type === "icu");
+        const generalBed = (h.beds || []).find((b) => b.type === "general");
+        const privateBed = (h.beds || []).find((b) => b.type === "private");
+        const emergencyBed = (h.beds || []).find((b) => b.type === "emergency");
+        context += `  Specialties: ${specialtiesList.join(", ")}\n`;
+        context += `  Accepted Insurances/Schemes: ${supportedInsurancesList.join(", ")}\n`;
         context += `  Beds Available:\n`;
-        context += `    ICU Beds: ${h.beds.icu.available} available (out of ${h.beds.icu.total})\n`;
-        context += `    General Beds: ${h.beds.general.available} available (out of ${h.beds.general.total})\n`;
-        context += `    Private Beds: ${h.beds.private.available} available (out of ${h.beds.private.total})\n`;
-        context += `    Emergency Beds: ${h.beds.emergency.available} available (out of ${h.beds.emergency.total})\n`;
+        context += `    ICU Beds: ${icuBed?.available ?? 0} available (out of ${icuBed?.total ?? 0})\n`;
+        context += `    General Beds: ${generalBed?.available ?? 0} available (out of ${generalBed?.total ?? 0})\n`;
+        context += `    Private Beds: ${privateBed?.available ?? 0} available (out of ${privateBed?.total ?? 0})\n`;
+        context += `    Emergency Beds: ${emergencyBed?.available ?? 0} available (out of ${emergencyBed?.total ?? 0})\n`;
         context += `  Treatment Costs:\n`;
         if (h.treatmentCosts && h.treatmentCosts.length > 0) {
           h.treatmentCosts.forEach((tc) => {

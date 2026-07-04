@@ -89,8 +89,8 @@ const Prescriptions = () => {
               <p style="margin: 4px 0;"><strong>Specialization:</strong> ${prescription.doctor?.specialization || "General Medicine"}</p>
             </div>
             <div style="text-align: right;">
-              <p style="margin: 4px 0;"><strong>Patient:</strong> ${prescription.user?.name}</p>
-              <p style="margin: 4px 0;"><strong>Email:</strong> ${prescription.user?.email}</p>
+              <p style="margin: 4px 0;"><strong>Patient:</strong> ${prescription.patient?.name || ""}</p>
+              <p style="margin: 4px 0;"><strong>Email:</strong> ${prescription.patient?.user?.email || ""}</p>
             </div>
           </div>
 
@@ -137,7 +137,7 @@ const Prescriptions = () => {
         <div className="space-y-6">
           {prescriptions.map((prescription) => (
             <div
-              key={prescription._id}
+              key={prescription.id}
               className="bg-white p-6 border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition-all"
             >
               <div className="flex justify-between items-start mb-4 pb-3 border-b border-gray-100">

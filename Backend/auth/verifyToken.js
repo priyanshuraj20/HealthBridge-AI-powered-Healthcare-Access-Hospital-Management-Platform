@@ -1,7 +1,5 @@
 import jwt from "jsonwebtoken";
-import Doctor from "../models/DoctorSchema.js";
-import User from "../models/UserSchema.js";
-import Organization from "../models/OrganizationSchema.js";
+import prisma from "../utils/prismaClient.js";
 
 export const authenticate = async (req, res, next) => {
   const authToken = req.headers.authorization;
@@ -30,24 +28,27 @@ export const authenticate = async (req, res, next) => {
 
 export const restrict = (roles) => async (req, res, next) => {
   const userId = req.userId;
-  let user;
-  const patient = await User.findById(userId);
-  const doctor = await Doctor.findById(userId);
-  const org = await Organization.findById(userId);
-  
-  if (patient) {
-    user = patient;
-  } else if (doctor) {
-    user = doctor;
-  } else {
-    user = org;
-  }
-  
-  if (!user || (user.role && !roles.includes(user.role))) {
+  try {
+    // Users (patient / org_admin / admin / receptionist / lab_tech) carry an explicit role column.
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    let role = user?.role;
+
+    // Doctors live in their own table and have an implicit "doctor" role.
+    if (!user) {
+      const doctor = await prisma.doctor.findUnique({ where: { id: userId } });
+      if (doctor) role = "doctor";
+    }
+
+    if (!role || !roles.includes(role)) {
+      return res
+        .status(401)
+        .json({ success: false, message: "You are not authorized" });
+    }
+    next();
+  } catch (err) {
     return res
       .status(401)
       .json({ success: false, message: "You are not authorized" });
   }
-  next();
 };
 

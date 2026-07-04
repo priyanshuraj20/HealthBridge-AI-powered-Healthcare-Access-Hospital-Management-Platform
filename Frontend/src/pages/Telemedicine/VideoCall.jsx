@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useContext, useCallback } from "react";
+import { useState, useEffect, useRef, useContext, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { authContext } from "../../context/AuthContext.jsx";
 import { BASE_URL } from "../../config.js";
@@ -259,7 +259,7 @@ const MeetingRoom = ({ role, booking, bookingId, onEnd, notes, setNotes, aiSumma
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          user: booking?.user?._id,
+          user: booking?.user?.id || booking?.patient?.userId || booking?.user?._id || booking?.patient?.id,
           booking: bookingId,
           medicines,
           notes: prescriptionNotes,
@@ -604,8 +604,8 @@ const VideoCall = () => {
           webcamEnabled: true,
           name: participantName,
           participantId: role === "doctor"
-            ? `doctor-${booking?.doctor?._id || bookingId}`
-            : `patient-${booking?.user?._id || bookingId}`,
+            ? `doctor-${booking?.doctor?.id || bookingId}`
+            : `patient-${booking?.patient?.id || bookingId}`,
           multiStream: false,
         }}
         token={participantToken}
